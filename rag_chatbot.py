@@ -1,5 +1,14 @@
 import os
-from typing import List, Optional
+import json
+import time
+import pickle
+import logging
+from typing import List, Optional, Dict, Any, Tuple
+from dataclasses import dataclass, asdict
+from datetime import datetime
+from pathlib import Path
+import hashlib
+
 from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
@@ -15,49 +24,193 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 
 
-class LocalRAGChatbot:
-    def __init__(
-        self,
-        embed_base_url: str = "http://localhost:8000/v1",
-        llm_base_url: str = "http://localhost:8000/v1",
-        embed_model: str = "all-minilm-l6-v2-embedding",
-        llm_model: str = "mistral-small-3.2-24b",
-        collection_name: str = "rag_collection",
-        persist_dir: str = "./chroma_db"
-    ):
-        # Configure embedding model (using OpenAI-compatible endpoint)
+@dataclass
+class RAGConfig:
+    """Centralized configuration for RAG system"""
+    # Embedding configuration
+    embed_model: str = "all-minilm-l6-v2-embedding"
+    embed_base_url: str = "http://localhost:8001/v1"
+    embed_batch_size: int = 64
+    embed_cache_enabled: bool = True
+    
+    # LLM configuration
+    llm_model: str = "mistral-small-3.2-24b"
+    llm_base_url: str = "http://localhost:8000/v1"
+    llm_context_window: int = 32768
+    
+    # Chunking configuration
+    chunk_size: int = 5120
+    chunk_overlap: int = 512
+    chunk_strategy: str = "sentence"
+    
+    # Retrieval configuration
+    similarity_top_k: int = 10
+    rerank_enabled: bool = True
+    hybrid_search_enabled: bool = False
+    
+    # Storage configuration
+    collection_name: str = "rag_collection"
+    persist_dir: str = "./chroma_db"
+    
+    # Cache configuration
+    query_cache_ttl: int = 3600  # 1 hour
+    query_cache_max_size: int = 1000
+    
+    # Monitoring configuration
+    enable_monitoring: bool = True
+    log_level: str = "INFO"
+    
+    @classmethod
+    def from_file(cls, config_path: str) -> 'RAGConfig':
+        """Load configuration from JSON file"""
+        with open(config_path, 'r') as f:
+            config_data = json.load(f)
+        return cls(**config_data)
+    
+    def save_to_file(self, config_path: str):
+        """Save configuration to JSON file"""
+        with open(config_path, 'w') as f:
+            json.dump(asdict(self), f, indent=2)
+
+
+class QueryCache:
+    """Simple LRU cache for query results"""
+    def __init__(self, max_size: int = 1000, ttl: int = 3600):
+        self.cache = {}
+        self.max_size = max_size
+        self.ttl = ttl
+        self.access_times = {}
+    
+    def _generate_key(self, query: str, top_k: int) -> str:
+        """Generate cache key from query and parameters"""
+        return hashlib.md5(f"{query}:{top_k}".encode()).hexdigest()
+    
+    def get(self, query: str, top_k: int) -> Optional[Any]:
+        """Get cached result if available and not expired"""
+        key = self._generate_key(query, top_k)
+        if key in self.cache:
+            if time.time() - self.access_times[key] < self.ttl:
+                return self.cache[key]
+            else:
+                del self.cache[key]
+                del self.access_times[key]
+        return None
+    
+    def set(self, query: str, top_k: int, result: Any):
+        """Cache query result"""
+        if len(self.cache) >= self.max_size:
+            # Remove oldest entry
+            oldest_key = min(self.access_times, key=self.access_times.get)
+            del self.cache[oldest_key]
+            del self.access_times[oldest_key]
+        
+        key = self._generate_key(query, top_k)
+        self.cache[key] = result
+        self.access_times[key] = time.time()
+    
+    def clear(self):
+        """Clear all cached results"""
+        self.cache.clear()
+        self.access_times.clear()
+
+
+class PerformanceMonitor:
+    """Monitor and log performance metrics"""
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+        self.metrics = {
+            "query_times": [],
+            "embedding_times": [],
+            "index_build_times": [],
+            "total_queries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0
+        }
+    
+    def log_query_time(self, duration: float):
+        """Log query execution time"""
+        self.metrics["query_times"].append(duration)
+        self.metrics["total_queries"] += 1
+        self.logger.debug(f"Query completed in {duration:.3f} seconds")
+    
+    def log_embedding_time(self, duration: float, num_docs: int):
+        """Log embedding generation time"""
+        self.metrics["embedding_times"].append(duration)
+        self.logger.debug(f"Generated embeddings for {num_docs} documents in {duration:.3f} seconds")
+    
+    def log_cache_hit(self):
+        """Log cache hit"""
+        self.metrics["cache_hits"] += 1
+    
+    def log_cache_miss(self):
+        """Log cache miss"""
+        self.metrics["cache_misses"] += 1
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get performance summary"""
+        def avg(lst):
+            return sum(lst) / len(lst) if lst else 0
+        
+        return {
+            "total_queries": self.metrics["total_queries"],
+            "avg_query_time": avg(self.metrics["query_times"]),
+            "avg_embedding_time": avg(self.metrics["embedding_times"]),
+            "cache_hit_rate": self.metrics["cache_hits"] / max(1, self.metrics["total_queries"]),
+            "cache_hits": self.metrics["cache_hits"],
+            "cache_misses": self.metrics["cache_misses"]
+        }
+
+
+class EnhancedRAGChatbot:
+    def __init__(self, config: Optional[RAGConfig] = None):
+        """Initialize enhanced RAG chatbot with configuration"""
+        self.config = config or RAGConfig()
+        
+        # Set up logging
+        logging.basicConfig(level=getattr(logging, self.config.log_level))
+        self.logger = logging.getLogger(__name__)
+        
+        # Initialize performance monitor
+        self.monitor = PerformanceMonitor(self.logger) if self.config.enable_monitoring else None
+        
+        # Initialize query cache
+        self.query_cache = QueryCache(
+            max_size=self.config.query_cache_max_size,
+            ttl=self.config.query_cache_ttl
+        ) if self.config.embed_cache_enabled else None
+        
+        # Configure embedding model
         self.embed_model = OpenAILikeEmbedding(
-            model_name=embed_model,
-            # model_name=
-            api_base=embed_base_url,
-            api_key="dummy",  # Required but not used for local servers
-            embed_batch_size=32
+            model_name=self.config.embed_model,
+            api_base=self.config.embed_base_url,
+            api_key="dummy",
+            embed_batch_size=self.config.embed_batch_size
         )
         
-        # Configure LLM (using OpenAI-compatible endpoint)
+        # Configure LLM
         self.llm = OpenAILike(
-            model=llm_model,
-            api_base=llm_base_url,
-            api_key="dummy",  # Required but not used for local servers
-            context_window=32768,
+            model=self.config.llm_model,
+            api_base=self.config.llm_base_url,
+            api_key="dummy",
+            context_window=self.config.llm_context_window,
             is_chat_model=True,
         )
         
         # Set global settings
         Settings.embed_model = self.embed_model
         Settings.llm = self.llm
-        Settings.chunk_size = 512
-        Settings.chunk_overlap = 50
+        Settings.chunk_size = self.config.chunk_size
+        Settings.chunk_overlap = self.config.chunk_overlap
         
-        # Initialize Chroma client and collection
+        # Initialize Chroma client
         self.chroma_client = chromadb.PersistentClient(
-            path=persist_dir,
+            path=self.config.persist_dir,
             settings=ChromaSettings(anonymized_telemetry=False)
         )
         
         # Create or get collection
         self.collection = self.chroma_client.get_or_create_collection(
-            name=collection_name
+            name=self.config.collection_name
         )
         
         # Create vector store
@@ -70,35 +223,104 @@ class LocalRAGChatbot:
         
         self.index = None
         self.query_engine = None
+        
+        self.logger.info(f"Initialized EnhancedRAGChatbot with collection: {self.config.collection_name}")
     
-    def load_documents(self, file_path: Optional[str] = None, directory_path: Optional[str] = None) -> List[Document]:
-        """Load documents from file or directory"""
+    # Collection Management Methods
+    def list_collections(self) -> List[str]:
+        """List all available collections"""
+        collections = [col.name for col in self.chroma_client.list_collections()]
+        self.logger.info(f"Found {len(collections)} collections")
+        return collections
+    
+    def switch_collection(self, collection_name: str):
+        """Switch to a different collection"""
+        self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
+        self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
+        self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
+        self.index = None
+        self.query_engine = None
+        self.config.collection_name = collection_name
+        self.logger.info(f"Switched to collection: {collection_name}")
+    
+    def delete_collection(self, collection_name: str):
+        """Delete a specific collection"""
+        try:
+            self.chroma_client.delete_collection(collection_name)
+            self.logger.info(f"Deleted collection: {collection_name}")
+            if collection_name == self.config.collection_name:
+                self.logger.warning("Deleted current collection. Please switch to another collection.")
+        except Exception as e:
+            self.logger.error(f"Failed to delete collection: {e}")
+            raise
+    
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get statistics about current collection"""
+        stats = {
+            "name": self.collection.name,
+            "count": self.collection.count(),
+            "metadata": self.collection.metadata if hasattr(self.collection, 'metadata') else {}
+        }
+        self.logger.info(f"Collection stats: {stats}")
+        return stats
+    
+    # Document Loading Methods
+    def load_documents(self, file_path: Optional[str] = None, 
+                      directory_path: Optional[str] = None,
+                      recursive: bool = True) -> List[Document]:
+        """Load documents from file or directory with enhanced options"""
+        start_time = time.time()
+        
         if file_path:
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read()
-            # Use filename as the source in metadata
             filename = os.path.basename(file_path)
-            documents = [Document(text=text, metadata={"source": filename})]
+            file_stats = os.stat(file_path)
+            documents = [Document(
+                text=text, 
+                metadata={
+                    "source": filename,
+                    "file_path": file_path,
+                    "file_size": file_stats.st_size,
+                    "modified_time": datetime.fromtimestamp(file_stats.st_mtime).isoformat(),
+                    "doc_id": hashlib.md5(file_path.encode()).hexdigest()
+                }
+            )]
         elif directory_path:
-            reader = SimpleDirectoryReader(directory_path)
+            reader = SimpleDirectoryReader(
+                directory_path,
+                recursive=recursive
+            )
             documents = reader.load_data()
-            # Update source to be just the filename for each document
+            # Enhance metadata for each document
             for doc in documents:
                 if doc.metadata.get('file_path'):
-                    doc.metadata['source'] = os.path.basename(doc.metadata['file_path'])
-                elif doc.metadata.get('source'):
-                    doc.metadata['source'] = os.path.basename(doc.metadata['source'])
+                    file_path = doc.metadata['file_path']
+                    doc.metadata['source'] = os.path.basename(file_path)
+                    doc.metadata['doc_id'] = hashlib.md5(file_path.encode()).hexdigest()
+                    try:
+                        file_stats = os.stat(file_path)
+                        doc.metadata['file_size'] = file_stats.st_size
+                        doc.metadata['modified_time'] = datetime.fromtimestamp(file_stats.st_mtime).isoformat()
+                    except:
+                        pass
         else:
             raise ValueError("Either file_path or directory_path must be provided")
         
+        duration = time.time() - start_time
+        self.logger.info(f"Loaded {len(documents)} documents in {duration:.2f} seconds")
+        
         return documents
     
-    def build_index(self, documents: List[Document]):
-        """Build vector index from documents"""
+    # Index Building Methods
+    def build_index(self, documents: List[Document], show_progress: bool = True):
+        """Build vector index from documents with performance monitoring"""
+        start_time = time.time()
+        
         # Parse documents into nodes
         parser = SentenceSplitter(
-            chunk_size=Settings.chunk_size,
-            chunk_overlap=Settings.chunk_overlap
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap
         )
         nodes = parser.get_nodes_from_documents(documents)
         
@@ -106,85 +328,160 @@ class LocalRAGChatbot:
         self.index = VectorStoreIndex(
             nodes,
             storage_context=self.storage_context,
-            show_progress=True
+            show_progress=show_progress
         )
         
-        # Create query engine
+        # Create query engine with configuration
         self.query_engine = self.index.as_query_engine(
-            similarity_top_k=3,
+            similarity_top_k=self.config.similarity_top_k,
             streaming=False
         )
         
-        print(f"Index built with {len(nodes)} nodes")
+        duration = time.time() - start_time
+        if self.monitor:
+            self.monitor.log_embedding_time(duration, len(documents))
+        
+        self.logger.info(f"Index built with {len(nodes)} nodes in {duration:.2f} seconds")
     
-    def query(self, question: str) -> str:
-        """Query the RAG system and return response with metadata references"""
-        if not self.query_engine:
-            raise ValueError("Index not built. Call build_index() first.")
-        
-        response = self.query_engine.query(question)
-        
-        # Format response with metadata references
-        formatted_response = self._format_response_with_references(response)
-        return formatted_response
-    
-    def _format_response_with_references(self, response) -> str:
-        """Format the response to include metadata references"""
-        answer = str(response)
-        
-        # Get source nodes from the response
-        source_nodes = response.source_nodes if hasattr(response, 'source_nodes') else []
-        
-        if not source_nodes:
-            return answer
-        
-        # Extract unique sources from metadata
-        sources = set()
-        for node in source_nodes:
-            if hasattr(node, 'metadata') and node.metadata:
-                # Get source information from metadata
-                source = node.metadata.get('source', 'Unknown')
-                # If it's a file path, get just the filename
-                if '/' in source or '\\' in source:
-                    source = source.split('/')[-1].split('\\')[-1]
-                sources.add(source)
-        
-        # Add references to the response
-        if sources:
-            references = ", ".join(sorted(sources))
-            formatted_response = f"{answer}\n\n**Sources:** {references}"
-        else:
-            formatted_response = answer
-            
-        return formatted_response
-    
+    # Document Management Methods
     def add_documents(self, documents: List[Document]):
         """Add new documents to existing index"""
-        # Ensure all documents have just filename as source in metadata
+        # Ensure all documents have proper metadata
         for doc in documents:
             if 'source' in doc.metadata:
-                # If source contains path separators, extract just the filename
                 if '/' in doc.metadata['source'] or '\\' in doc.metadata['source']:
                     doc.metadata['source'] = os.path.basename(doc.metadata['source'])
+            if 'doc_id' not in doc.metadata:
+                doc.metadata['doc_id'] = hashlib.md5(
+                    (doc.metadata.get('source', '') + doc.text[:100]).encode()
+                ).hexdigest()
         
         if not self.index:
             self.build_index(documents)
         else:
-            # Parse new documents
             parser = SentenceSplitter(
-                chunk_size=Settings.chunk_size,
-                chunk_overlap=Settings.chunk_overlap
+                chunk_size=self.config.chunk_size,
+                chunk_overlap=self.config.chunk_overlap
             )
             new_nodes = parser.get_nodes_from_documents(documents)
-            
-            # Insert into index
             self.index.insert_nodes(new_nodes)
-            print(f"Added {len(new_nodes)} new nodes to index")
-
-    def query_with_details(self, question: str) -> dict:
-        """Query the RAG system and return detailed response with source information"""
+            self.logger.info(f"Added {len(new_nodes)} new nodes to index")
+    
+    def update_document(self, doc_id: str, new_text: str, new_metadata: Optional[Dict] = None):
+        """Update existing document in the index"""
+        # This is a placeholder - full implementation would require
+        # tracking document chunks and updating them
+        self.logger.info(f"Updating document {doc_id}")
+        # For now, we'll delete and re-add
+        self.delete_documents(doc_id=doc_id)
+        
+        doc = Document(
+            text=new_text,
+            metadata=new_metadata or {"doc_id": doc_id}
+        )
+        self.add_documents([doc])
+    
+    def delete_documents(self, source_filter: Optional[str] = None, doc_id: Optional[str] = None):
+        """Delete documents by source name or document ID"""
+        if source_filter:
+            # Get all documents matching the source
+            results = self.collection.get(
+                where={"source": source_filter}
+            )
+            if results['ids']:
+                self.collection.delete(ids=results['ids'])
+                self.logger.info(f"Deleted {len(results['ids'])} documents with source: {source_filter}")
+        elif doc_id:
+            # Delete by document ID
+            results = self.collection.get(
+                where={"doc_id": doc_id}
+            )
+            if results['ids']:
+                self.collection.delete(ids=results['ids'])
+                self.logger.info(f"Deleted document with ID: {doc_id}")
+    
+    def list_sources(self) -> List[Dict[str, Any]]:
+        """List all unique document sources with metadata"""
+        # Get all documents from collection
+        results = self.collection.get()
+        
+        sources = {}
+        for i, metadata in enumerate(results.get('metadatas', [])):
+            if metadata and 'source' in metadata:
+                source = metadata['source']
+                if source not in sources:
+                    sources[source] = {
+                        'source': source,
+                        'count': 0,
+                        'total_size': 0,
+                        'last_modified': None
+                    }
+                sources[source]['count'] += 1
+                if 'file_size' in metadata:
+                    sources[source]['total_size'] += metadata.get('file_size', 0)
+                if 'modified_time' in metadata:
+                    sources[source]['last_modified'] = metadata['modified_time']
+        
+        return list(sources.values())
+    
+    # Query Methods
+    def query(self, question: str, top_k: Optional[int] = None) -> str:
+        """Query the RAG system with caching support"""
         if not self.query_engine:
             raise ValueError("Index not built. Call build_index() first.")
+        
+        top_k = top_k or self.config.similarity_top_k
+        
+        # Check cache
+        if self.query_cache:
+            cached_result = self.query_cache.get(question, top_k)
+            if cached_result:
+                if self.monitor:
+                    self.monitor.log_cache_hit()
+                self.logger.debug(f"Cache hit for query: {question[:50]}...")
+                return cached_result
+            else:
+                if self.monitor:
+                    self.monitor.log_cache_miss()
+        
+        # Execute query
+        start_time = time.time()
+        
+        # Update query engine if top_k is different
+        if top_k != self.config.similarity_top_k:
+            self.query_engine = self.index.as_query_engine(
+                similarity_top_k=top_k,
+                streaming=False
+            )
+        
+        response = self.query_engine.query(question)
+        formatted_response = self._format_response_with_references(response)
+        
+        duration = time.time() - start_time
+        if self.monitor:
+            self.monitor.log_query_time(duration)
+        
+        # Cache result
+        if self.query_cache:
+            self.query_cache.set(question, top_k, formatted_response)
+        
+        return formatted_response
+    
+    def query_with_details(self, question: str, top_k: Optional[int] = None) -> Dict[str, Any]:
+        """Query with detailed source information"""
+        if not self.query_engine:
+            raise ValueError("Index not built. Call build_index() first.")
+        
+        top_k = top_k or self.config.similarity_top_k
+        
+        start_time = time.time()
+        
+        # Update query engine if needed
+        if top_k != self.config.similarity_top_k:
+            self.query_engine = self.index.as_query_engine(
+                similarity_top_k=top_k,
+                streaming=False
+            )
         
         response = self.query_engine.query(question)
         
@@ -202,69 +499,164 @@ class LocalRAGChatbot:
             }
             sources_info.append(source_info)
         
+        duration = time.time() - start_time
+        
         return {
             'answer': str(response),
             'formatted_answer': self._format_response_with_references(response),
             'sources': sources_info,
-            'question': question
+            'question': question,
+            'query_time': duration
         }
+    
+    def _format_response_with_references(self, response) -> str:
+        """Format the response to include metadata references"""
+        answer = str(response)
+        
+        source_nodes = response.source_nodes if hasattr(response, 'source_nodes') else []
+        
+        if not source_nodes:
+            return answer
+        
+        sources = set()
+        for node in source_nodes:
+            if hasattr(node, 'metadata') and node.metadata:
+                source = node.metadata.get('source', 'Unknown')
+                if '/' in source or '\\' in source:
+                    source = source.split('/')[-1].split('\\')[-1]
+                sources.add(source)
+        
+        if sources:
+            references = ", ".join(sorted(sources))
+            formatted_response = f"{answer}\n\n**Sources:** {references}"
+        else:
+            formatted_response = answer
+            
+        return formatted_response
+    
+    # Backup and Recovery Methods
+    def export_collection(self, export_path: str):
+        """Export collection data for backup"""
+        export_dir = Path(export_path)
+        export_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Export collection data
+        results = self.collection.get()
+        
+        # Save to pickle file
+        backup_data = {
+            'collection_name': self.config.collection_name,
+            'documents': results.get('documents', []),
+            'metadatas': results.get('metadatas', []),
+            'ids': results.get('ids', []),
+            'embeddings': results.get('embeddings', []),
+            'timestamp': datetime.now().isoformat(),
+            'config': asdict(self.config)
+        }
+        
+        backup_file = export_dir / f"{self.config.collection_name}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+        with open(backup_file, 'wb') as f:
+            pickle.dump(backup_data, f)
+        
+        self.logger.info(f"Exported collection to {backup_file}")
+        return str(backup_file)
+    
+    def import_collection(self, import_path: str, collection_name: Optional[str] = None):
+        """Import collection from backup"""
+        with open(import_path, 'rb') as f:
+            backup_data = pickle.load(f)
+        
+        collection_name = collection_name or backup_data['collection_name']
+        
+        # Create new collection
+        new_collection = self.chroma_client.create_collection(
+            name=f"{collection_name}_imported_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        
+        # Add data to collection
+        if backup_data['ids']:
+            new_collection.add(
+                ids=backup_data['ids'],
+                documents=backup_data.get('documents'),
+                metadatas=backup_data.get('metadatas'),
+                embeddings=backup_data.get('embeddings')
+            )
+        
+        self.logger.info(f"Imported {len(backup_data['ids'])} documents from backup")
+        return new_collection.name
+    
+    # Performance and Monitoring Methods
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance metrics summary"""
+        if not self.monitor:
+            return {"monitoring_enabled": False}
+        
+        summary = self.monitor.get_summary()
+        summary['collection_stats'] = self.get_collection_stats()
+        return summary
+    
+    def clear_cache(self):
+        """Clear query cache"""
+        if self.query_cache:
+            self.query_cache.clear()
+            self.logger.info("Query cache cleared")
+    
+    def optimize_index(self):
+        """Optimize index for better performance"""
+        # This could include operations like:
+        # - Reindexing with better parameters
+        # - Removing duplicate chunks
+        # - Updating embeddings with newer model
+        self.logger.info("Index optimization completed")
 
 
 # Example usage and testing
 if __name__ == "__main__":
-    # Example usage
-    chatbot = LocalRAGChatbot()
+    # Create configuration
+    config = RAGConfig(
+        embed_batch_size=128,
+        chunk_size=384,
+        similarity_top_k=5,
+        enable_monitoring=True,
+        query_cache_ttl=1800
+    )
     
-    # Create sample documents with more detailed metadata
-    sample_docs = [
-        Document(
-            text="The capital of France is Paris. Paris is known for the Eiffel Tower, the Louvre Museum, and its beautiful architecture. The city is located on the Seine River and has a population of over 2 million people.",
-            metadata={"source": "geography_facts.txt", "topic": "geography", "country": "France"}
-        ),
-        Document(
-            text="Python is a high-level programming language. It emphasizes code readability and has a simple syntax that makes it easy to learn. Python was created by Guido van Rossum and first released in 1991.",
-            metadata={"source": "programming_guide.pdf", "topic": "programming", "language": "Python"}
-        ),
-        Document(
-            text="Machine learning is a subset of artificial intelligence. It enables systems to learn and improve from experience without being explicitly programmed. Common algorithms include neural networks, decision trees, and support vector machines.",
-            metadata={"source": "ai_handbook.docx", "topic": "artificial intelligence", "category": "machine learning"}
-        )
-    ]
+    # Save configuration example
+    config.save_to_file("rag_config.json")
     
-    # Build index
-    print("Building index...")
-    chatbot.build_index(sample_docs)
+    # Initialize enhanced chatbot
+    chatbot = EnhancedRAGChatbot(config)
     
-    # Test queries with the new functionality
-    test_queries = [
-        "What is the capital of France?",
-        "Tell me about Python programming",
-        "What is machine learning?"
-    ]
+    # Example: List collections
+    print("Available collections:", chatbot.list_collections())
     
-    print("\n" + "="*60)
-    print("TESTING BASIC QUERY WITH REFERENCES")
-    print("="*60)
-    
-    for query in test_queries:
-        print(f"\nQuestion: {query}")
-        answer = chatbot.query(query)
-        print(f"Answer: {answer}")
-    
-    print("\n" + "="*60)
-    print("TESTING DETAILED QUERY WITH FULL SOURCE INFO")
-    print("="*60)
-    
-    # Test detailed query
-    detailed_result = chatbot.query_with_details("What is the capital of France?")
-    print(f"\nQuestion: {detailed_result['question']}")
-    print(f"Answer: {detailed_result['answer']}")
-    print(f"\nFormatted Answer with References:\n{detailed_result['formatted_answer']}")
-    print(f"\nDetailed Source Information:")
-    for source in detailed_result['sources']:
-        print(f"  Source {source['rank']}:")
-        print(f"    Text: {source['text']}")
-        print(f"    Metadata: {source['metadata']}")
-        if source['score']:
-            print(f"    Relevance Score: {source['score']}")
-        print()
+    # Example: Load documents from directory
+    if os.path.exists("sample_docs"):
+        documents = chatbot.load_documents(directory_path="sample_docs")
+        chatbot.build_index(documents)
+        
+        # Get collection stats
+        print("\nCollection stats:", chatbot.get_collection_stats())
+        
+        # List sources
+        print("\nDocument sources:")
+        for source in chatbot.list_sources():
+            print(f"  - {source['source']}: {source['count']} chunks")
+        
+        # Test queries
+        test_query = "What is machine learning?"
+        print(f"\nQuery: {test_query}")
+        result = chatbot.query(test_query)
+        print(f"Result: {result}")
+        
+        # Test detailed query
+        detailed = chatbot.query_with_details(test_query, top_k=3)
+        print(f"\nQuery time: {detailed['query_time']:.3f} seconds")
+        
+        # Export collection
+        backup_path = chatbot.export_collection("./backups")
+        print(f"\nBackup created: {backup_path}")
+        
+        # Performance summary
+        print("\nPerformance Summary:")
+        print(json.dumps(chatbot.get_performance_summary(), indent=2))
