@@ -4,3 +4,4 @@ llama-index-llms-openai-like
 llama-index-vector-stores-chroma
 chromadb
 python-dotenv
+streamlit>=1.28.0

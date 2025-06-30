@@ -16,6 +16,7 @@ from llama_index.core import (
     StorageContext,
     Settings
 )
+from llama_index.core.prompts import PromptTemplate
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai_like import OpenAILikeEmbedding
 from llama_index.llms.openai_like import OpenAILike
@@ -30,17 +31,24 @@ class RAGConfig:
     # Embedding configuration
     embed_model: str = "all-minilm-l6-v2-embedding"
     embed_base_url: str = "http://localhost:8001/v1"
-    embed_batch_size: int = 64
+    embed_batch_size: int = 8
     embed_cache_enabled: bool = True
     
     # LLM configuration
     llm_model: str = "mistral-small-3.2-24b"
     llm_base_url: str = "http://localhost:8000/v1"
     llm_context_window: int = 32768
+    system_prompt: str = "You are a helpful AI assistant. Answer questions based on the provided context. Be concise and accurate."
+    
+    # API Keys for cloud providers
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    together_api_key: Optional[str] = None
+    hf_api_key: Optional[str] = None
     
     # Chunking configuration
-    chunk_size: int = 5120
-    chunk_overlap: int = 512
+    chunk_size: int = 4096
+    chunk_overlap: int = 500
     chunk_strategy: str = "sentence"
     
     # Retrieval configuration
@@ -179,11 +187,15 @@ class EnhancedRAGChatbot:
             ttl=self.config.query_cache_ttl
         ) if self.config.embed_cache_enabled else None
         
+        # Determine API key based on base URL
+        embed_api_key = self._get_api_key(self.config.embed_base_url)
+        llm_api_key = self._get_api_key(self.config.llm_base_url)
+        
         # Configure embedding model
         self.embed_model = OpenAILikeEmbedding(
             model_name=self.config.embed_model,
             api_base=self.config.embed_base_url,
-            api_key="dummy",
+            api_key=embed_api_key,
             embed_batch_size=self.config.embed_batch_size
         )
         
@@ -191,7 +203,7 @@ class EnhancedRAGChatbot:
         self.llm = OpenAILike(
             model=self.config.llm_model,
             api_base=self.config.llm_base_url,
-            api_key="dummy",
+            api_key=llm_api_key,
             context_window=self.config.llm_context_window,
             is_chat_model=True,
         )
@@ -225,6 +237,67 @@ class EnhancedRAGChatbot:
         self.query_engine = None
         
         self.logger.info(f"Initialized EnhancedRAGChatbot with collection: {self.config.collection_name}")
+    
+    def _get_api_key(self, base_url: str) -> str:
+        """Get appropriate API key based on the base URL"""
+        if "openai.com" in base_url:
+            return self.config.openai_api_key or "dummy"
+        elif "anthropic.com" in base_url:
+            return self.config.anthropic_api_key or "dummy"
+        elif "together.xyz" in base_url:
+            return self.config.together_api_key or "dummy"
+        elif "huggingface.co" in base_url:
+            return self.config.hf_api_key or "dummy"
+        else:
+            return "dummy"  # For local servers
+    
+    def _create_query_engine(self, similarity_top_k: Optional[int] = None, streaming: bool = False):
+        """Create query engine with system prompt"""
+        if not self.index:
+            return None
+        
+        top_k = similarity_top_k or self.config.similarity_top_k
+        
+        # Create custom QA template with system prompt
+        qa_template = PromptTemplate(
+            f"""### Task:
+Respond to the user query using the provided context, incorporating inline citations in the format [id] **only when the <source> tag includes an explicit id attribute** (e.g., <source id="1">).
+
+### Guidelines:
+- If you don't know the answer, clearly state that.
+- If uncertain, ask the user for clarification.
+- Respond in the same language as the user's query.
+- If the context is unreadable or of poor quality, inform the user and provide the best possible answer.
+- If the answer isn't present in the context but you possess the knowledge, explain this to the user and provide the answer using your own understanding.
+- **Only include inline citations using [id] (e.g., [1], [2]) when the <source> tag includes an id attribute.**
+- Do not cite if the <source> tag does not contain an id attribute.
+- Do not use XML tags in your response.
+- Ensure citations are concise and directly related to the information provided.
+
+### Example of Citation:
+If the user asks about a specific topic and the information is found in a source with a provided id attribute, the response should include the citation like in the following example:
+* "According to the study, the proposed method increases efficiency by 20% [1]."
+
+### Output:
+Provide a clear and direct response to the user's query, including inline citations in the format [id] only when the <source> tag with id attribute is present in the context.
+
+<context>
+{{context_str}}
+</context>
+
+<user_query>
+{{query_str}}
+</user_query>
+
+{self.config.system_prompt}
+            """
+        )
+        
+        return self.index.as_query_engine(
+            similarity_top_k=top_k,
+            streaming=streaming,
+            text_qa_template=qa_template
+        )
     
     # Collection Management Methods
     def list_collections(self) -> List[str]:
@@ -332,10 +405,7 @@ class EnhancedRAGChatbot:
         )
         
         # Create query engine with configuration
-        self.query_engine = self.index.as_query_engine(
-            similarity_top_k=self.config.similarity_top_k,
-            streaming=False
-        )
+        self.query_engine = self._create_query_engine()
         
         duration = time.time() - start_time
         if self.monitor:
@@ -449,10 +519,7 @@ class EnhancedRAGChatbot:
         
         # Update query engine if top_k is different
         if top_k != self.config.similarity_top_k:
-            self.query_engine = self.index.as_query_engine(
-                similarity_top_k=top_k,
-                streaming=False
-            )
+            self.query_engine = self._create_query_engine(similarity_top_k=top_k)
         
         response = self.query_engine.query(question)
         formatted_response = self._format_response_with_references(response)
@@ -467,6 +534,60 @@ class EnhancedRAGChatbot:
         
         return formatted_response
     
+    def query_stream(self, question: str, top_k: Optional[int] = None):
+        """Query the RAG system with streaming response"""
+        if not self.query_engine:
+            raise ValueError("Index not built. Call build_index() first.")
+        
+        top_k = top_k or self.config.similarity_top_k
+        
+        # Check cache first
+        if self.query_cache:
+            cached_result = self.query_cache.get(question, top_k)
+            if cached_result:
+                if self.monitor:
+                    self.monitor.log_cache_hit()
+                # Yield cached result as single chunk
+                yield cached_result
+                return
+            else:
+                if self.monitor:
+                    self.monitor.log_cache_miss()
+        
+        # Create streaming query engine
+        streaming_query_engine = self._create_query_engine(similarity_top_k=top_k, streaming=True)
+        
+        # Execute streaming query
+        start_time = time.time()
+        response = streaming_query_engine.query(question)
+        
+        # Accumulate the full response for caching and formatting
+        full_response = ""
+        
+        # Stream the response
+        for token in response.response_gen:
+            full_response += token
+            yield token
+        
+        # Log performance and cache result
+        duration = time.time() - start_time
+        if self.monitor:
+            self.monitor.log_query_time(duration)
+        
+        # Format and cache the complete response
+        if self.query_cache:
+            # Create a mock response object for formatting
+            class MockResponse:
+                def __init__(self, text, source_nodes):
+                    self.response = text
+                    self.source_nodes = source_nodes
+                def __str__(self):
+                    return self.response
+            
+            mock_response = MockResponse(full_response, response.source_nodes)
+            formatted_response = self._format_response_with_references(mock_response)
+            self.query_cache.set(question, top_k, formatted_response)
+    
     def query_with_details(self, question: str, top_k: Optional[int] = None) -> Dict[str, Any]:
         """Query with detailed source information"""
         if not self.query_engine:
@@ -478,10 +599,7 @@ class EnhancedRAGChatbot:
         
         # Update query engine if needed
         if top_k != self.config.similarity_top_k:
-            self.query_engine = self.index.as_query_engine(
-                similarity_top_k=top_k,
-                streaming=False
-            )
+            self.query_engine = self._create_query_engine(similarity_top_k=top_k)
         
         response = self.query_engine.query(question)
         
@@ -614,7 +732,7 @@ class EnhancedRAGChatbot:
 if __name__ == "__main__":
     # Create configuration
     config = RAGConfig(
-        embed_batch_size=128,
+        embed_batch_size=8,
         chunk_size=384,
         similarity_top_k=5,
         enable_monitoring=True,
