@@ -26,10 +26,10 @@ load_dotenv()
 def load_config():
     """Load configuration from environment or defaults"""
     return RAGConfig(
-        embed_base_url=os.getenv("EMBED_BASE_URL", "http://localhost:8001/v1"),
-        llm_base_url=os.getenv("LLM_BASE_URL", "http://localhost:8000/v1"),
-        embed_model=os.getenv("EMBED_MODEL", "all-minilm-l6-v2-embedding"),
-        llm_model=os.getenv("LLM_MODEL", "mistral-small-3.2-24b"),
+        embed_base_url=os.getenv("EMBED_BASE_URL", "https://api.mistral.ai/v1"),
+        llm_base_url=os.getenv("LLM_BASE_URL", "https://api.mistral.ai/v1"),
+        embed_model=os.getenv("EMBED_MODEL", "mistral-embed"),
+        llm_model=os.getenv("LLM_MODEL", "mistral-small-2506"),
         system_prompt=os.getenv("SYSTEM_PROMPT", "You are a helpful AI assistant. Answer questions based on the provided context. Be concise and accurate."),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),

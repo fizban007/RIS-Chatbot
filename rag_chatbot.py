@@ -337,22 +337,49 @@ Provide a clear and direct response to the user's query, including inline citati
         self.logger.info(f"Collection stats: {stats}")
         return stats
     
+    def _get_webpage_url_from_json(self, file_path: str) -> Optional[str]:
+        """Get webpage URL from corresponding JSON file"""
+        try:
+            # Get the directory and filename without extension
+            file_dir = os.path.dirname(file_path)
+            file_name = os.path.splitext(os.path.basename(file_path))[0]
+            json_path = os.path.join(file_dir, f"{file_name}.json")
+            
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                    return json_data.get('webpage_url')
+        except Exception as e:
+            self.logger.warning(f"Failed to read JSON file for {file_path}: {e}")
+        
+        return None
+    
     # Document Loading Methods
     def load_documents(self, file_path: Optional[str] = None, 
                       directory_path: Optional[str] = None,
                       recursive: bool = True) -> List[Document]:
-        """Load documents from file or directory with enhanced options"""
+        """Load documents from file or directory with enhanced options (markdown files only)"""
         start_time = time.time()
         
         if file_path:
+            # Check if the file is a markdown file
+            if not file_path.lower().endswith(('.md', '.markdown')):
+                self.logger.warning(f"Skipping non-markdown file: {file_path}")
+                return []
+            
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read()
             filename = os.path.basename(file_path)
             file_stats = os.stat(file_path)
+            
+            # Try to get webpage URL from JSON file, fallback to filename
+            webpage_url = self._get_webpage_url_from_json(file_path)
+            source = webpage_url if webpage_url else filename
+            
             documents = [Document(
                 text=text, 
                 metadata={
-                    "source": filename,
+                    "source": source,
                     "file_path": file_path,
                     "file_size": file_stats.st_size,
                     "modified_time": datetime.fromtimestamp(file_stats.st_mtime).isoformat(),
@@ -360,16 +387,39 @@ Provide a clear and direct response to the user's query, including inline citati
                 }
             )]
         elif directory_path:
+            # Configure reader to only load markdown files
             reader = SimpleDirectoryReader(
                 directory_path,
-                recursive=recursive
+                recursive=recursive,
+                required_exts=[".md", ".markdown"]  # Only load markdown files
             )
             documents = reader.load_data()
-            # Enhance metadata for each document
+            
+            # Filter out any JSON files that might have been loaded accidentally
+            markdown_documents = []
             for doc in documents:
+                file_path = doc.metadata.get('file_path', '')
+                
+                # Skip JSON files
+                if file_path.lower().endswith('.json'):
+                    self.logger.debug(f"Skipping JSON file: {file_path}")
+                    continue
+                
+                # Only process markdown files
+                if not file_path.lower().endswith(('.md', '.markdown')):
+                    self.logger.debug(f"Skipping non-markdown file: {file_path}")
+                    continue
+                
+                # Enhance metadata for markdown documents
                 if doc.metadata.get('file_path'):
                     file_path = doc.metadata['file_path']
-                    doc.metadata['source'] = os.path.basename(file_path)
+                    
+                    # Try to get webpage URL from JSON file, fallback to filename
+                    webpage_url = self._get_webpage_url_from_json(file_path)
+                    print(f"webpage_url is {webpage_url}")
+                    source = webpage_url if webpage_url else os.path.basename(file_path)
+                    
+                    doc.metadata['source'] = source
                     doc.metadata['doc_id'] = hashlib.md5(file_path.encode()).hexdigest()
                     try:
                         file_stats = os.stat(file_path)
@@ -377,11 +427,15 @@ Provide a clear and direct response to the user's query, including inline citati
                         doc.metadata['modified_time'] = datetime.fromtimestamp(file_stats.st_mtime).isoformat()
                     except:
                         pass
+                
+                markdown_documents.append(doc)
+            
+            documents = markdown_documents
         else:
             raise ValueError("Either file_path or directory_path must be provided")
         
-        duration = time.time() - start_time
-        self.logger.info(f"Loaded {len(documents)} documents in {duration:.2f} seconds")
+        duration= time.time() - start_time
+        self.logger.info(f"Loaded {len(documents)} markdown documents in {duration:.2f} seconds")
         
         return documents
     
