@@ -48,16 +48,17 @@ git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 
 # We target a cuda-based build [TODO: fill in other options]
-cmake -B build -DGGML_CUDA=ON 
+cmake -B build -DGGML_CUDA=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
 
 # Build the server. If you only requested 1 CPU core then it may take a while.
 cmake --build build -j
 
-# Download the model
-wget https://huggingface.co/TheBloke/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL/resolve/main/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf
+# Download the model. May need to authenticate when running the first time?
+huggingface-cli download unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF --include "Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf" --local-dir models/
 
 # Run the server. Eventually we may need to explore switching to vllm since it's better optimized for many users.
 LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/ ./build/bin/llama-server --jinja --port 8000 --model models/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf -ngl 99 -fa -c 65536 --mlock --cache-reuse 256 --temp 0.15 --top-k -1 --top-p 1.00 &
 
 # Run the streamlit app
+cd ..
 STREAMLIT_SERVER_ADDRESS=0.0.0.0 streamlit run streamlit_app_simple.py &
