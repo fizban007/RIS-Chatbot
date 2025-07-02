@@ -7,3 +7,4 @@ chromadb
 python-dotenv
 streamlit>=1.28.0
 confluence-markdown-exporter
+huggingface_hub[cli]
