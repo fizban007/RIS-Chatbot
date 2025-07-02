@@ -1,0 +1,8 @@
+- Add deploy guide
+- Add the functionality to use up arrow to navigate prompt history
+- Fine tune the system prompt (e.g. add additional info)
+- Make the chat output refer to the documentation page that it took the information from
+- Make library update incremental by looking at page update timestamp
+- Maybe add citation for where the context is coming from?
+- Fine tune the chat UI (e.g. include session management, chat history db, RIS branding)
+- Improve RAG capabilities by transformation on the prompt?

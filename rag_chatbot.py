@@ -19,7 +19,7 @@ from llama_index.core import (
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai_like import OpenAILikeEmbedding
-from llama_index.embeddings.mistralai import MistralAIEmbedding
+# from llama_index.embeddings.mistralai import MistralAIEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.vector_stores.chroma import ChromaVectorStore
