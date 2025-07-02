@@ -2,6 +2,7 @@ llama-index
 llama-index-embeddings-openai-like
 llama-index-llms-openai-like
 llama-index-vector-stores-chroma
+llama-index-embeddings-huggingface
 chromadb
 python-dotenv
 streamlit>=1.28.0
