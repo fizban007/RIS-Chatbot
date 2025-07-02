@@ -19,6 +19,8 @@ from llama_index.core import (
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai_like import OpenAILikeEmbedding
+from llama_index.embeddings.mistralai import MistralAIEmbedding
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
@@ -29,15 +31,15 @@ from chromadb.config import Settings as ChromaSettings
 class RAGConfig:
     """Centralized configuration for RAG system"""
     # Embedding configuration
-    embed_model: str = "all-minilm-l6-v2-embedding"
-    embed_base_url: str = "http://localhost:8001/v1"
+    embed_model: str = "Qwen/Qwen3-Embedding-0.6B"
+    embed_base_url: str = "https://api.mistral.ai/v1"
     embed_batch_size: int = 8
     embed_cache_enabled: bool = True
     
     # LLM configuration
-    llm_model: str = "mistral-small-3.2-24b"
-    llm_base_url: str = "http://localhost:8000/v1"
-    llm_context_window: int = 32768
+    llm_model: str = "mistral-small-2506"
+    llm_base_url: str = "https://localhost:8000/v1"
+    llm_context_window: int = 65536
     system_prompt: str = "You are a helpful AI assistant. Answer questions based on the provided context. Be concise and accurate."
     
     # API Keys for cloud providers
@@ -192,12 +194,18 @@ class EnhancedRAGChatbot:
         llm_api_key = self._get_api_key(self.config.llm_base_url)
         
         # Configure embedding model
-        self.embed_model = OpenAILikeEmbedding(
-            model_name=self.config.embed_model,
-            api_base=self.config.embed_base_url,
-            api_key=embed_api_key,
-            embed_batch_size=self.config.embed_batch_size
-        )
+        self.embed_model = HuggingFaceEmbedding(model_name="Qwen/Qwen3-Embedding-0.6B")
+        # self.embed_model = OpenAILikeEmbedding(
+        #     model_name=self.config.embed_model,
+        #     api_base=self.config.embed_base_url,
+        #     api_key=embed_api_key,
+        #     embed_batch_size=self.config.embed_batch_size
+        # )
+        # self.embed_model = MistralAIEmbedding(
+        #     model_name=self.config.embed_model,
+        #     api_key=embed_api_key,
+        #     embed_batch_size=self.config.embed_batch_size
+        # )
         
         # Configure LLM
         self.llm = OpenAILike(
@@ -261,7 +269,7 @@ class EnhancedRAGChatbot:
         # Create custom QA template with system prompt
         qa_template = PromptTemplate(
             f"""### Task:
-Respond to the user query using the provided context, incorporating inline citations in the format [id] **only when the <source> tag includes an explicit id attribute** (e.g., <source id="1">).
+Respond to the user query using the provided context.
 
 ### Guidelines:
 - If you don't know the answer, clearly state that.
@@ -269,17 +277,10 @@ Respond to the user query using the provided context, incorporating inline citat
 - Respond in the same language as the user's query.
 - If the context is unreadable or of poor quality, inform the user and provide the best possible answer.
 - If the answer isn't present in the context but you possess the knowledge, explain this to the user and provide the answer using your own understanding.
-- **Only include inline citations using [id] (e.g., [1], [2]) when the <source> tag includes an id attribute.**
-- Do not cite if the <source> tag does not contain an id attribute.
 - Do not use XML tags in your response.
-- Ensure citations are concise and directly related to the information provided.
-
-### Example of Citation:
-If the user asks about a specific topic and the information is found in a source with a provided id attribute, the response should include the citation like in the following example:
-* "According to the study, the proposed method increases efficiency by 20% [1]."
 
 ### Output:
-Provide a clear and direct response to the user's query, including inline citations in the format [id] only when the <source> tag with id attribute is present in the context.
+Provide a clear and direct response to the user's query.
 
 <context>
 {{context_str}}
