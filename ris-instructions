@@ -4,7 +4,7 @@
 export LSF_DOCKER_VOLUMES="/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs:/usr/local/modules /storage2/fs1/dt-summer-corp:/storage2/fs1/dt-summer-corp $HOME:$HOME"
 
 # Submit the job requesting 1 GPU. Map the port 8501 to host port 8003. Use the ris_chatbot docker image.
-LSF_DOCKER_PORTS='8003:8501' bsub -Is -G compute-artsci -q artsci-interactive -n 1 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+LSF_DOCKER_PORTS='8003:8501' bsub -Is -G compute-artsci -q artsci-interactive -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
 
 # This the work directory
 cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/
@@ -14,6 +14,9 @@ git clone https://github.com/fizban007/RIS-Chatbot.git
 
 # Change to the RIS-Chatbot directory
 cd RIS-Chatbot
+
+# Change .env.example to .env and potentially tweak the settings
+mv .env.example .env
 
 # Create a virtual environment
 python3 -m venv venv
@@ -26,7 +29,7 @@ pip install -r requirements.txt
 
 ### Setting up the RAG database
 python confluence.py
-# The first time you run this, it will ask for some authentication details. Choose the first option and just input the root URL of the RIS Confluence instance: https://washu.atlassian.net/. This will take a while to run and export all the pages to the RIS\ User\ Documentation directory.
+# The first time you run this, it may ask for some authentication details. Choose the first option and just input the root URL of the RIS Confluence instance: https://washu.atlassian.net/. This will take a while to run (~5 minutes) and export all the pages to the RIS\ User\ Documentation directory.
 
 # Clean up the markdown files to change the code block syntax from ```java to ```
 python fix_markdown.py
@@ -44,24 +47,17 @@ git clone https://github.com/ggml-org/llama.cpp.git
 
 cd llama.cpp
 
-# We target a cuda-based build
+# We target a cuda-based build [TODO: fill in other options]
+cmake -B build -DGGML_CUDA=ON 
 
+# Build the server. If you only requested 1 CPU core then it may take a while.
+cmake --build build -j
 
-## RAG
+# Download the model
+wget https://huggingface.co/TheBloke/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL/resolve/main/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf
 
-
-
-
-
-
-
-
-
-LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/ ./build/bin/llama-server --port 8001 -m models/nomic-embed-text-v1.5.Q8_0.gguf --embeddings -ngl 99  -c 8192 -b 8192 -ub 8192 --rope-scaling yarn --rope-freq-scale .75 &
-
-
+# Run the server. Eventually we may need to explore switching to vllm since it's better optimized for many users.
 LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/ ./build/bin/llama-server --jinja --port 8000 --model models/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf -ngl 99 -fa -c 65536 --mlock --cache-reuse 256 --temp 0.15 --top-k -1 --top-p 1.00 &
 
-python manage_rag.py load-docs --dir ./RIS\ User\ Documentation/RIS\ User\ Documentation
-
+# Run the streamlit app
 STREAMLIT_SERVER_ADDRESS=0.0.0.0 streamlit run streamlit_app_simple.py &

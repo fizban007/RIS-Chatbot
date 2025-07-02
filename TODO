@@ -6,3 +6,4 @@
 - Maybe add citation for where the context is coming from?
 - Fine tune the chat UI (e.g. include session management, chat history db, RIS branding)
 - Improve RAG capabilities by transformation on the prompt?
+- Migrate to vllm for multi-user capabilities
