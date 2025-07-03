@@ -3,14 +3,21 @@ import subprocess
 import json
 import os
 import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+import requests, json
+from requests.auth import HTTPBasicAuth
+
+host = "https://washu.atlassian.net/"
+username = 'c.daedalus@wustl.edu'
+space_key = 'RUD' # Replace with your space key
 
 confluence = Confluence(
-  url='https://washu.atlassian.net/',
-  username='cyuran@wustl.edu',
+  url=host,
+  username=username,
   # I believe the password is not required since our confluence page is public.
 )
 
-space_key = 'RUD' # Replace with your space key
 markdown_path_url_dict = {}
 
 def get_page_hierarchy(space_key):
@@ -55,9 +62,6 @@ def get_page_hierarchy(space_key):
                 hierarchy[parent_id]['children'].append(hierarchy[page_id])
     
     return root_pages
-
-hierarchy = get_page_hierarchy(space_key)
-print(hierarchy)
 
 # Function to sanitize filename for safe file operations
 def sanitize_filename(filename):
@@ -111,7 +115,14 @@ def export_page_with_metadata(page, path_prefix=""):
         return
             
 
-def walk_and_export_hierarchy(pages, path_prefix=""):
+def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
+    # Filter pages to only include those in the page_ids list
+    if page_ids:
+        pages = [page for page in pages if page['id'] in page_ids]
+        # Export the pages that are in the page_ids list
+        for page in pages:
+            export_page_with_metadata(page, path_prefix)
+
     """Recursively walk through page hierarchy and export each page"""
     for page in pages:
         # Add indentation to show hierarchy level
@@ -125,15 +136,6 @@ def walk_and_export_hierarchy(pages, path_prefix=""):
         if page['children']:
             print(f"Processing children of: {page['title']}")
             walk_and_export_hierarchy(page['children'], path_prefix + page['title'] + "/")
-
-# Walk through the hierarchy and export all pages
-print("Starting hierarchical export...")
-walk_and_export_hierarchy(hierarchy, "RIS User Documentation/")
-os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
-print("\nHierarchical export completed! All pages and metadata have been exported.")
-
-# Update markdown files to replace internal links with webpage URLs
-print("\nUpdating internal links in markdown files...")
 
 def update_markdown_links(file_path, url_mapping):
     """Update markdown file to replace internal links with webpage URLs"""
@@ -192,9 +194,56 @@ def update_all_markdown_files(directory, url_mapping):
             if file.endswith('.md'):
                 file_path = os.path.join(root, file)
                 update_markdown_links(file_path, url_mapping)
+    print("Finished updating internal links to webpage URLs!")
 
-# Update all markdown files with the URL mapping
-update_all_markdown_files("RIS User Documentation/", markdown_path_url_dict)
+def get_conf_update():
 
-print("Finished updating internal links to webpage URLs!")
+    # base URL for the Confluence API
+    base_url = f"{host}/wiki/rest/api/content/search"   
 
+    # Get the date one week ago in the format YYYY-MM-DD
+    one_week_ago = (datetime.now(ZoneInfo("America/Chicago")) - timedelta(days=7)).strftime("%Y-%m-%d")
+    cql = f"lastmodified >= {one_week_ago}"
+    
+    # Make the request to the Confluence API
+    response = requests.request("GET",
+                                base_url,
+                                headers = {
+                                    "Accept": "application/json"
+                                },
+                                params = {
+                                    "cql": cql,
+                                    "spaceKey": space_key,
+                                    "limit": 25,
+                                    "expand": "body.storage",
+                                })
+
+    # Parse the response as JSON
+    data = response.json()
+
+    # Get the page IDs from the response
+    page_ids = [item['id'] for item in data['results']]
+    page_titles = [item['title'] for item in data['results']]
+
+    # Return the page IDs
+    return page_ids, page_titles
+
+if __name__ == '__main__':
+    # Get updated pages from the last week
+    updated_pages_ids, updated_pages_titles = get_conf_update()
+    print(f"Updated pages in the last week: {updated_pages_ids}" if updated_pages_ids else "No pages updated in the last week")
+
+    # Get page hierarchy
+    hierarchy = get_page_hierarchy(space_key)
+    print(hierarchy)
+    
+    # Walk through the hierarchy and export all pages
+    print("Starting hierarchical export...")
+    walk_and_export_hierarchy(hierarchy, "RIS User Documentation/", page_ids = updated_pages_ids)
+    os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
+    print("\nHierarchical export completed! All pages and metadata have been exported.")
+    
+    # Update markdown files to replace internal links with webpage URLs
+    print("\nUpdating internal links in markdown files...")
+    update_all_markdown_files("RIS User Documentation/", markdown_path_url_dict)
+    
