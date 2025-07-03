@@ -59,6 +59,16 @@ huggingface-cli download unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF --incl
 # Run the server. Eventually we may need to explore switching to vllm since it's better optimized for many users.
 LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/ ./build/bin/llama-server --jinja --port 8000 --model models/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf -ngl 99 -fa -c 65536 --mlock --cache-reuse 256 --temp 0.15 --top-k -1 --top-p 1.00 &
 
-# Run the streamlit app
 cd ..
+
+### Alternative: Run the server with vllm
+# Install vllm (eventually we can put this in requirements.txt)
+pip install vllm
+
+# Serve the same model as above. This one by default is using the unquantized model so it's slower on single user, but throughput should be better for multiple users. HF_HOME is needed to avoid downloading the model to the home directory.
+HF_HOME=huggingface/ vllm serve mistralai/Mistral-Small-3.2-24B-Instruct-2506 --tokenizer_mode mistral --config_format mistral --load_format mistral --tool-call-parser mistral --enable-auto-tool-choice &
+
+# Note that if we use vllm, then the LLM_MODEL in .env needs to be set to mistralai/Mistral-Small-3.2-24B-Instruct-2506, which is the same as the model we downloaded above.
+
+# Run the streamlit app
 STREAMLIT_SERVER_ADDRESS=0.0.0.0 streamlit run streamlit_app_simple.py &
