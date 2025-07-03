@@ -1,0 +1,39 @@
+FROM ubuntu:22.04
+
+LABEL maintainer="Alex Chen <cyuran@wustl.edu>"
+
+# Get rid of apt package install timezone selection
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Basic packages
+RUN cd /tmp/ && apt-get update && \
+    apt-get install -y cmake gcc g++ wget && \
+    apt-get install -y python3-pip python3-venv git vim openssh-client
+
+# Obtain cuda drivers for 12.4
+ENV CUDA_VERSION=12.4.0
+ENV CUDA_VERSION_MAJOR=12-4
+ENV CUDA_DRIVER_VERSION=550.54.14
+ENV UBUNTU_VERSION=ubuntu2204
+
+RUN cd /tmp && \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/${UBUNTU_VERSION}/x86_64/cuda-${UBUNTU_VERSION}.pin && \
+    mv cuda-${UBUNTU_VERSION}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+    wget https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/local_installers/cuda-repo-${UBUNTU_VERSION}-${CUDA_VERSION_MAJOR}-local_${CUDA_VERSION}-${CUDA_DRIVER_VERSION}-1_amd64.deb && \
+    dpkg -i cuda-repo-${UBUNTU_VERSION}-${CUDA_VERSION_MAJOR}-local_${CUDA_VERSION}-${CUDA_DRIVER_VERSION}-1_amd64.deb && \
+    cp /var/cuda-repo-${UBUNTU_VERSION}-${CUDA_VERSION_MAJOR}-local/cuda-*-keyring.gpg /usr/share/keyrings/ && \
+    apt-get update && \
+    apt-get install -y cuda-drivers-550 && \
+    rm -rf /tmp/* && \
+    apt-get clean && \
+    rm -rf /var/cuda-repo-${UBUNTU_VERSION}-${CUDA_VERSION_MAJOR}-local/
+
+# Get miniconda. This is not strictly required but it can be helpful
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
+    bash ~/miniconda.sh -b -p /opt/miniconda && \
+    eval "$(/opt/miniconda/bin/conda shell.bash hook)"
+
+# Create environment exports so that our cuda installation can be found
+RUN echo "export PATH=/usr/local/modules/cuda-12.4.0/bin:\$PATH" >> /etc/bashrc && \
+    echo "export LD_LIBRARY_PATH=/opt/ibm/lsfsuite/lsf/10.1/linux2.6-glibc2.3-x86_64/lib:$LD_LIBRARY_PATH" >> /etc/bashrc
+
