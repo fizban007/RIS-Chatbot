@@ -11,6 +11,8 @@ from requests.auth import HTTPBasicAuth
 host = "https://washu.atlassian.net/"
 username = 'c.daedalus@wustl.edu'
 space_key = 'RUD' # Replace with your space key
+space_id = 1621884932  # We got this from the API call
+time_window = 14 # The number of days you want to look back for updated pages
 
 confluence = Confluence(
   url=host,
@@ -88,13 +90,14 @@ def export_page_with_metadata(page, path_prefix=""):
     markdown_path_url_dict[title + '.md'] = webpage_url
     
     if os.path.exists(markdown_path):
-        print(f"Markdown file already exists: {markdown_path}, skipping export...")
-        return
+        print(f"Markdown file already exists: {markdown_path}, deleting...")
+        os.remove(markdown_path)
     # print(f"path is {path_prefix + title}")
     
     try:
         # Export the page using cf-export
-        subprocess.run(['cf-export', 'page', page_id], check=True)
+        results = subprocess.run(['cf-export', 'page', page_id], check=True, stdout=subprocess.PIPE)
+        print(results.stdout)
         
         # Create metadata dictionary
         metadata = {
@@ -108,34 +111,33 @@ def export_page_with_metadata(page, path_prefix=""):
         with open(path_prefix + title + '.json', 'w', encoding='utf-8') as json_file:
             json.dump(metadata, json_file, indent=2, ensure_ascii=False)
         print(f"Saved metadata to: {path_prefix + title + '.json'}")
-
+        return markdown_path
             
     except subprocess.CalledProcessError as e:
         print(f"Error exporting page {title} (ID: {page_id}): {e}")
-        return
+        return None
             
 
 def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
-    # Filter pages to only include those in the page_ids list
+    # Filter pages to only include those in the page_ids list (only if page_ids is not empty)
     if page_ids:
         pages = [page for page in pages if page['id'] in page_ids]
-        # Export the pages that are in the page_ids list
-        for page in pages:
-            export_page_with_metadata(page, path_prefix)
 
     """Recursively walk through page hierarchy and export each page"""
     for page in pages:
-        # Add indentation to show hierarchy level
-        # indent = "  " * level
-        # print(f"{indent}Exporting: {page['title']}")
-        
         # Export this page
-        export_page_with_metadata(page, path_prefix)
+        markdown_path = export_page_with_metadata(page, path_prefix)
+        if markdown_path:
+            # Ensure the directory exists before writing
+            os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
+            with open(path_prefix + 'updated_pages.txt', 'a') as f:
+                f.write(f"{markdown_path}\n")
         
         # Recursively export children
         if page['children']:
             print(f"Processing children of: {page['title']}")
-            walk_and_export_hierarchy(page['children'], path_prefix + page['title'] + "/")
+            child_path_prefix = path_prefix + sanitize_filename(page['title']) + "/"
+            walk_and_export_hierarchy(page['children'], page_ids, child_path_prefix)
 
 def update_markdown_links(file_path, url_mapping):
     """Update markdown file to replace internal links with webpage URLs"""
@@ -197,49 +199,90 @@ def update_all_markdown_files(directory, url_mapping):
     print("Finished updating internal links to webpage URLs!")
 
 def get_conf_update():
-
     # base URL for the Confluence API
-    base_url = f"{host}/wiki/rest/api/content/search"   
+    base_url = f"{host}/wiki/rest/api/content"   
 
-    # Get the date one week ago in the format YYYY-MM-DD
-    one_week_ago = (datetime.now(ZoneInfo("America/Chicago")) - timedelta(days=7)).strftime("%Y-%m-%d")
-    cql = f"lastmodified >= {one_week_ago}"
+    # Get the date one week ago
+    week_ago = datetime.now(ZoneInfo("UTC")) - timedelta(days=time_window)
+    print(f"Looking for pages modified after: {week_ago.strftime('%Y-%m-%d')}")
     
-    # Make the request to the Confluence API
+    # Make the request to get all pages in the space
     response = requests.request("GET",
                                 base_url,
                                 headers = {
                                     "Accept": "application/json"
                                 },
                                 params = {
-                                    "cql": cql,
                                     "spaceKey": space_key,
-                                    "limit": 25,
-                                    "expand": "body.storage",
+                                    "limit": 100,  # Increased limit to get more pages
+                                    "expand": "version,history",  # Changed expand to include history
                                 })
+    
+    print(f"Status Code: {response.status_code}")
+    
+    # Check if the response is successful
+    if response.status_code != 200:
+        print(f"Error: HTTP {response.status_code}")
+        return [], []
 
-    # Parse the response as JSON
-    data = response.json()
+    try:
+        # Parse the response as JSON
+        data = response.json()
+        
+        # Filter results by last modified date
+        results = data['results']
+        filtered_results = []
+        
+        print(f"Total pages found: {len(results)}")
+        
+        for item in results:
+            if 'version' in item and 'when' in item['version']:
+                last_modified = item['version']['when']
+                
+                # Parse the date and check if it's within the last week
+                try:
+                    modified_date = datetime.fromisoformat(last_modified.replace('Z', '+00:00'))
+                    
+                    if modified_date >= week_ago:
+                        filtered_results.append(item)
+                        
+                except Exception as e:
+                    print(f"Error parsing date {last_modified}: {e}")
 
-    # Get the page IDs from the response
-    page_ids = [item['id'] for item in data['results']]
-    page_titles = [item['title'] for item in data['results']]
+        # Get the page IDs and titles from filtered results
+        page_ids = [item['id'] for item in filtered_results]
+        page_titles = [item['title'] for item in filtered_results]
 
-    # Return the page IDs
-    return page_ids, page_titles
-
+        print(f"Found {len(page_ids)} pages modified in the last {time_window} days")
+        
+        return page_ids, page_titles
+        
+    except requests.exceptions.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        return [], []
+    
 if __name__ == '__main__':
-    # Get updated pages from the last week
-    updated_pages_ids, updated_pages_titles = get_conf_update()
-    print(f"Updated pages in the last week: {updated_pages_ids}" if updated_pages_ids else "No pages updated in the last week")
-
+    # Ensure the output directory exists
+    os.makedirs("RIS User Documentation", exist_ok=True)
+    
+    # If not running for the first time (i.e. updated_pages.txt exists), get updated pages from the last week
+    updated_pages_ids = []
+    if os.path.exists("RIS User Documentation/updated_pages.txt"):
+        updated_pages_ids, updated_pages_titles = get_conf_update()
+        print(f"Updated pages in the last week: {updated_pages_titles}" if updated_pages_titles else "No pages updated in the last week")
+    else:
+        print("First run detected - will export all pages")
+    
+    # Clear the updated_pages.txt file either way
+    with open("RIS User Documentation/updated_pages.txt", 'w') as f:
+        f.write("")
+    
     # Get page hierarchy
     hierarchy = get_page_hierarchy(space_key)
-    print(hierarchy)
-    
-    # Walk through the hierarchy and export all pages
+
+    # Walk through the hierarchy and export all or updated pages
     print("Starting hierarchical export...")
-    walk_and_export_hierarchy(hierarchy, "RIS User Documentation/", page_ids = updated_pages_ids)
+    walk_and_export_hierarchy(hierarchy, updated_pages_ids, "RIS User Documentation/")
     os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
     print("\nHierarchical export completed! All pages and metadata have been exported.")
     
