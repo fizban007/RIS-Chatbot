@@ -96,8 +96,7 @@ def export_page_with_metadata(page, path_prefix=""):
     
     try:
         # Export the page using cf-export
-        results = subprocess.run(['cf-export', 'page', page_id], check=True, stdout=subprocess.PIPE)
-        print(results.stdout)
+        results = subprocess.run(['cf-export', 'page', page_id], check=True)
         
         # Create metadata dictionary
         metadata = {
@@ -269,7 +268,12 @@ if __name__ == '__main__':
     updated_pages_ids = []
     if os.path.exists("RIS User Documentation/updated_pages.txt"):
         updated_pages_ids, updated_pages_titles = get_conf_update()
-        print(f"Updated pages in the last week: {updated_pages_titles}" if updated_pages_titles else "No pages updated in the last week")
+        if updated_pages_ids:
+            print(f"Updated pages in the last week: ")
+            for title in updated_pages_titles:
+                print(f"- {title}")
+        else:
+            print("No pages updated in the last week")
     else:
         print("First run detected - will export all pages")
     
@@ -283,7 +287,8 @@ if __name__ == '__main__':
     # Walk through the hierarchy and export all or updated pages
     print("Starting hierarchical export...")
     walk_and_export_hierarchy(hierarchy, updated_pages_ids, "RIS User Documentation/")
-    os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
+    if os.path.exists("RIS User Documentation/RIS User Documentation.json"):
+        os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
     print("\nHierarchical export completed! All pages and metadata have been exported.")
     
     # Update markdown files to replace internal links with webpage URLs

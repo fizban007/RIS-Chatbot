@@ -782,6 +782,188 @@ Provide a clear and direct response to the user's query.
         # - Updating embeddings with newer model
         self.logger.info("Index optimization completed")
 
+    def get_chunks_for_source(self, source_name: str) -> List[Dict[str, Any]]:
+        """Get all chunks for a specific source document.
+        
+        Args:
+            source_name: Name of the source document
+            
+        Returns:
+            List of chunk information including text, metadata, and IDs
+        """
+        try:
+            # Query ChromaDB for chunks from this source
+            results = self.collection.get(
+                where={"source": source_name},
+                include=["documents", "metadatas", "embeddings"]
+            )
+            
+            chunks = []
+            for i, (doc_id, text, metadata) in enumerate(zip(
+                results.get('ids', []),
+                results.get('documents', []),
+                results.get('metadatas', [])
+            )):
+                chunk_info = {
+                    'chunk_id': doc_id,
+                    'text': text,
+                    'metadata': metadata or {},
+                    'source': source_name,
+                    'chunk_index': i
+                }
+                chunks.append(chunk_info)
+            
+            self.logger.info(f"Found {len(chunks)} chunks for source: {source_name}")
+            return chunks
+            
+        except Exception as e:
+            self.logger.error(f"Error getting chunks for source {source_name}: {e}")
+            return []
+    
+    def update_document_with_chunk_tracking(self, file_path: str) -> Dict[str, Any]:
+        """Update a document with detailed chunk tracking.
+        
+        Args:
+            file_path: Path to the document file
+            force_update: Force update even if document hasn't changed
+            
+        Returns:
+            Dict with update statistics and chunk information
+        """
+        try:
+            source_name = os.path.basename(file_path)
+                        
+            # Get existing chunks before deletion
+            old_chunks = self.get_chunks_for_source(source_name)
+            old_chunk_count = len(old_chunks)
+            
+            # Delete existing chunks
+            if old_chunks:
+                self.delete_documents(source_filter=source_name)
+                self.logger.info(f"Deleted {old_chunk_count} old chunks for {source_name}")
+            
+            # Load and process the updated document
+            docs = self.load_documents(file_path=file_path)
+            if not docs:
+                return {
+                    "status": "failed",
+                    "reason": "could_not_load_document",
+                    "old_chunks": old_chunk_count,
+                    "new_chunks": 0
+                }
+            
+            # Create chunks manually to track them
+            parser = SentenceSplitter(
+                chunk_size=self.config.chunk_size,
+                chunk_overlap=self.config.chunk_overlap
+            )
+            nodes = parser.get_nodes_from_documents(docs)
+            
+            # Add chunk tracking metadata
+            for i, node in enumerate(nodes):
+                node.metadata['chunk_index'] = i
+                node.metadata['total_chunks'] = len(nodes)
+                node.metadata['chunk_id'] = f"{source_name}_chunk_{i}"
+            
+            # Add to index
+            if not self.index:
+                self.build_index(docs)
+            else:
+                self.index.insert_nodes(nodes)
+            
+            # Get new chunks for verification
+            new_chunks = self.get_chunks_for_source(source_name)
+            new_chunk_count = len(new_chunks)
+            
+            update_stats = {
+                "status": "success",
+                "source": source_name,
+                "old_chunks": old_chunk_count,
+                "new_chunks": new_chunk_count,
+                "chunk_change": new_chunk_count - old_chunk_count,
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            self.logger.info(f"Updated {source_name}: {old_chunk_count} -> {new_chunk_count} chunks")
+            return update_stats
+            
+        except Exception as e:
+            self.logger.error(f"Error updating document {file_path}: {e}")
+            return {
+                "status": "failed",
+                "reason": str(e),
+                "old_chunks": 0,
+                "new_chunks": 0
+            }
+    
+    def update_from_file_list(self, file_list_path: str) -> Dict[str, Any]:
+        """Update vector embeddings for files listed in a text file.
+        
+        Args:
+            file_list_path: Path to text file containing list of files to update (one per line)
+            
+        Returns:
+            Dict containing update statistics
+        """
+        if not os.path.exists(file_list_path):
+            self.logger.warning(f"File list not found: {file_list_path}")
+            return {"error": "File list not found", "updated": 0, "failed": 0, "skipped": 0}
+            
+        # Read the list of files to update
+        with open(file_list_path, 'r') as f:
+            files_to_update = [line.strip() for line in f.readlines()]
+        
+        if not files_to_update:
+            self.logger.info("No files to update")
+            return {"updated": 0, "failed": 0, "skipped": 0}
+        
+        self.logger.info(f"Found {len(files_to_update)} files to update")
+        
+        stats = {
+            "updated": 0, 
+            "failed": 0, 
+            "skipped": 0,
+            "total_old_chunks": 0,
+            "total_new_chunks": 0,
+            "file_details": []
+        }
+        
+        # Process each file
+        for file_path in files_to_update:
+            try:
+                result = self.update_document_with_chunk_tracking(file_path)
+                
+                if result["status"] == "success":
+                    stats["updated"] += 1
+                    stats["total_old_chunks"] += result["old_chunks"]
+                    stats["total_new_chunks"] += result["new_chunks"]
+                elif result["status"] == "skipped":
+                    stats["skipped"] += 1
+                else:
+                    stats["failed"] += 1
+                
+                stats["file_details"].append({
+                    "file": file_path,
+                    "result": result
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Error processing {file_path}: {e}")
+                stats["failed"] += 1
+                stats["file_details"].append({
+                    "file": file_path,
+                    "result": {"status": "failed", "reason": str(e)}
+                })
+        
+        # Summary
+        chunk_change = stats["total_new_chunks"] - stats["total_old_chunks"]
+        stats["chunk_change"] = chunk_change
+        
+        self.logger.info(f"Update completed. Updated: {stats['updated']}, Failed: {stats['failed']}, Skipped: {stats['skipped']}")
+        self.logger.info(f"Chunk changes: {stats['total_old_chunks']} -> {stats['total_new_chunks']} (Δ{chunk_change:+d})")
+        
+        return stats
+
 
 # Example usage and testing
 if __name__ == "__main__":

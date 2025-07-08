@@ -11,6 +11,8 @@ Usage:
     python manage_rag.py clear-collection
     python manage_rag.py backup --output ./backup.pkl
     python manage_rag.py restore --input ./backup.pkl
+    python manage_rag.py update-from-list --file updated_files.txt
+    python manage_rag.py get-chunks --source document.txt
 """
 
 import argparse
@@ -173,6 +175,41 @@ def restore_collection(args):
     new_collection = chatbot.import_collection(args.input)
     print(f"✅ Restored to collection: {new_collection}")
 
+def update_from_list(args):
+    """Update embeddings for files listed in a text file"""
+    config = load_config()
+    chatbot = EnhancedRAGChatbot(config)
+    
+    print(f"Updating embeddings from file list: {args.file}")
+    stats = chatbot.update_from_file_list(args.file)
+    
+    if "error" in stats:
+        print(f"❌ Error: {stats['error']}")
+        return
+    
+    print(f"\n📊 Update Summary:")
+    print(f"✅ Successfully updated: {stats['updated']} files")
+    if stats['skipped'] > 0:
+        print(f"⏭️  Skipped (no changes): {stats['skipped']} files")
+    if stats['failed'] > 0:
+        print(f"❌ Failed updates: {stats['failed']} files")
+
+
+def get_chunks_info(args):
+    """Get chunk information for a specific source"""
+    config = load_config()
+    chatbot = EnhancedRAGChatbot(config)
+    
+    chunks = chatbot.get_chunks_for_source(args.source)
+    
+    if not chunks:
+        print(f"❌ No chunks found for source: {args.source}")
+        return
+    
+    print(f"\n🧩 Chunks for '{args.source}':")
+    print(f"   Total chunks: {len(chunks)}")
+    
+
 def main():
     parser = argparse.ArgumentParser(description="RAG Chatbot Management Tool")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -209,6 +246,16 @@ def main():
     restore_parser = subparsers.add_parser('restore', help='Restore collection from backup')
     restore_parser.add_argument('--input', required=True, help='Input backup file path')
     restore_parser.set_defaults(func=restore_collection)
+    
+    # Update from list command
+    update_list_parser = subparsers.add_parser('update-from-list', help='Update embeddings for files listed in a text file')
+    update_list_parser.add_argument('--file', required=True, help='Path to text file containing list of files to update')
+    update_list_parser.set_defaults(func=update_from_list)
+    
+    # Get chunks info command
+    chunks_parser = subparsers.add_parser('get-chunks', help='Get chunk information for a specific source')
+    chunks_parser.add_argument('--source', required=True, help='Source name to get chunks for')
+    chunks_parser.set_defaults(func=get_chunks_info)
     
     args = parser.parse_args()
     
