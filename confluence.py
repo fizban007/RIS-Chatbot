@@ -118,23 +118,24 @@ def export_page_with_metadata(page, path_prefix=""):
             
 
 def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
-    # Filter pages to only include those in the page_ids list (only if page_ids is not empty)
-    if page_ids:
-        pages = [page for page in pages if page['id'] in page_ids]
-
     """Recursively walk through page hierarchy and export each page"""
     for page in pages:
-        # Export this page
-        markdown_path = export_page_with_metadata(page, path_prefix)
-        if markdown_path:
-            # Ensure the directory exists before writing
-            os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
-            with open(path_prefix + 'updated_pages.txt', 'a') as f:
-                f.write(f"{markdown_path}\n")
+        # If we have specific page IDs to filter, only export if this page is in the list
+        should_export = not page_ids or page['id'] in page_ids
+        
+        if should_export:
+            # Export this page
+            markdown_path = export_page_with_metadata(page, path_prefix)
+            if markdown_path:
+                # Ensure the directory exists before writing
+                os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
+                with open(path_prefix + 'updated_pages.txt', 'a') as f:
+                    f.write(f"{markdown_path}\n")
         
         # Recursively export children
         if page['children']:
             print(f"Processing children of: {page['title']}")
+            # Assumes parent directory exists, either from export or from previous run
             child_path_prefix = path_prefix + sanitize_filename(page['title']) + "/"
             walk_and_export_hierarchy(page['children'], page_ids, child_path_prefix)
 
