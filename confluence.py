@@ -79,6 +79,7 @@ def export_page_with_metadata(page, path_prefix=""):
     title = page['title']
     title = sanitize_filename(title)
     
+    print("\n"+"="*100)
     print(f"Processing: {title} (ID: {page_id})")
 
     # Create the webpage URL
