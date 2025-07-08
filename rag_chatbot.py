@@ -917,7 +917,9 @@ Provide a clear and direct response to the user's query.
             self.logger.info("No files to update")
             return {"updated": 0, "failed": 0, "skipped": 0}
         
-        self.logger.info(f"Found {len(files_to_update)} files to update")
+        self.logger.info(f"Found {len(files_to_update)} files to update:")
+        for file in files_to_update:
+            self.logger.info(f"  - {file}")
         
         stats = {
             "updated": 0, 
