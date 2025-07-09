@@ -131,6 +131,7 @@ def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
             if markdown_path:
                 # Ensure the directory exists before writing
                 os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
+                print(f"Writing to: {path_prefix + 'updated_pages.txt'!}")
                 with open(path_prefix + 'updated_pages.txt', 'a') as f:
                     f.write(f"{markdown_path}\n")
         
