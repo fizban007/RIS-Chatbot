@@ -127,6 +127,7 @@ def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
         if should_export:
             # Export this page
             markdown_path = export_page_with_metadata(page, path_prefix)
+            print(f"Markdown path: {markdown_path}")
             if markdown_path:
                 # Ensure the directory exists before writing
                 os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
@@ -268,7 +269,7 @@ if __name__ == '__main__':
     
     # If not running for the first time (i.e. updated_pages.txt exists), get updated pages from the last week
     updated_pages_ids = []
-    if os.path.exists("RIS User Documentation/updated_pages.txt"):
+    if os.path.exists("RIS User Documentation/RIS User Documentation/updated_pages.txt"):
         updated_pages_ids, updated_pages_titles = get_conf_update()
         if updated_pages_ids:
             print(f"Updated pages in the last week: ")
@@ -280,7 +281,7 @@ if __name__ == '__main__':
         print("First run detected - will export all pages")
     
     # Clear the updated_pages.txt file either way
-    with open("RIS User Documentation/updated_pages.txt", 'w') as f:
+    with open("RIS User Documentation/RIS User Documentation/updated_pages.txt", 'w') as f:
         f.write("")
     
     # Get page hierarchy
