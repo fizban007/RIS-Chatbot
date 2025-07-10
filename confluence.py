@@ -130,9 +130,9 @@ def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
             print(f"Markdown path: {markdown_path}")
             if markdown_path:
                 # Ensure the directory exists before writing
-                os.makedirs(os.path.dirname(path_prefix + 'updated_pages.txt'), exist_ok=True)
-                print(f"Writing to: {path_prefix + 'updated_pages.txt'}!")
-                with open(path_prefix + 'updated_pages.txt', 'a') as f:
+                os.makedirs(os.path.dirname("RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt"), exist_ok=True)
+                print(f"Writing to: 'RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt'!")
+                with open("RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt", 'a') as f:
                     f.write(f"{markdown_path}\n")
         
         # Recursively export children
@@ -282,6 +282,7 @@ if __name__ == '__main__':
         print("First run detected - will export all pages")
     
     # Clear the updated_pages.txt file either way
+    os.makedirs(os.path.dirname("RIS User Documentation/RIS User Documentation/updated_pages.txt"), exist_ok=True)
     with open("RIS User Documentation/RIS User Documentation/updated_pages.txt", 'w') as f:
         f.write("")
     
