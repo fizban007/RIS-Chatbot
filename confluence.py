@@ -130,9 +130,10 @@ def walk_and_export_hierarchy(pages, page_ids, path_prefix=""):
             print(f"Markdown path: {markdown_path}")
             if markdown_path:
                 # Ensure the directory exists before writing
-                os.makedirs(os.path.dirname("RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt"), exist_ok=True)
-                print(f"Writing to: 'RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt'!")
-                with open("RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/updated_pages.txt", 'a') as f:
+                updated_pages_file = os.path.join("RIS User Documentation", "updated_pages.txt")
+                os.makedirs(os.path.dirname(updated_pages_file), exist_ok=True)
+                print(f"Writing to: '{updated_pages_file}'!")
+                with open(updated_pages_file, 'a') as f:
                     f.write(f"{markdown_path}\n")
         
         # Recursively export children
@@ -270,7 +271,8 @@ if __name__ == '__main__':
     
     # If not running for the first time (i.e. updated_pages.txt exists), get updated pages from the last week
     updated_pages_ids = []
-    if os.path.exists("RIS User Documentation/RIS User Documentation/updated_pages.txt"):
+    updated_pages_file = os.path.join("RIS User Documentation", "updated_pages.txt")
+    if os.path.exists(updated_pages_file):
         updated_pages_ids, updated_pages_titles = get_conf_update()
         if updated_pages_ids:
             print(f"Updated pages in the last week: ")
@@ -282,8 +284,8 @@ if __name__ == '__main__':
         print("First run detected - will export all pages")
     
     # Clear the updated_pages.txt file either way
-    os.makedirs(os.path.dirname("RIS User Documentation/RIS User Documentation/updated_pages.txt"), exist_ok=True)
-    with open("RIS User Documentation/RIS User Documentation/updated_pages.txt", 'w') as f:
+    os.makedirs(os.path.dirname(updated_pages_file), exist_ok=True)
+    with open(updated_pages_file, 'w') as f:
         f.write("")
     
     # Get page hierarchy
@@ -292,8 +294,11 @@ if __name__ == '__main__':
     # Walk through the hierarchy and export all or updated pages
     print("Starting hierarchical export...")
     walk_and_export_hierarchy(hierarchy, updated_pages_ids, "RIS User Documentation/")
-    if os.path.exists("RIS User Documentation/RIS User Documentation.json"):
-        os.system("mv RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json RIS\\ User\\ Documentation/RIS\\ User\\ Documentation/RIS\\ User\\ Documentation.json")
+    source_json = os.path.join("RIS User Documentation", "RIS User Documentation.json")
+    target_json = os.path.join("RIS User Documentation", "RIS User Documentation", "RIS User Documentation.json")
+    if os.path.exists(source_json):
+        os.makedirs(os.path.dirname(target_json), exist_ok=True)
+        os.rename(source_json, target_json)
     print("\nHierarchical export completed! All pages and metadata have been exported.")
     
     # Update markdown files to replace internal links with webpage URLs
