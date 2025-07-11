@@ -12,7 +12,7 @@ host = "https://washu.atlassian.net/"
 username = 'c.daedalus@wustl.edu'
 space_key = 'RUD' # Replace with your space key
 space_id = 1621884932  # We got this from the API call
-time_window = 14 # The number of days you want to look back for updated pages
+time_window = 21 # The number of days you want to look back for updated pages
 
 confluence = Confluence(
   url=host,
