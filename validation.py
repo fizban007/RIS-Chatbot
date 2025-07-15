@@ -69,6 +69,7 @@ for root_dir, _, files in os.walk(DATA_DIR):
             
             for question in file_questions:
                 print(f"Question: {question}")
+                
                 # Query the LLM (if you have documents loaded)
                 chatbot_response = chatbot.query(question)
                 print(f"ChatbotResponse: {chatbot_response}")
