@@ -1,0 +1,21 @@
+You are an expert evaluator tasked with determining whether a chatbot's response to a question is accurate and consistent with the provided context.
+
+**QUESTION:** {question}
+
+**CONTEXT:** {context}
+
+**CHATBOT'S RESPONSE:** {response}
+
+**EVALUATION CRITERIA:**
+- The response should be factually accurate based on the context
+- The response should directly address the question asked
+- The response should not contradict information in the context
+- The response should not include information not supported by the context
+- Minor formatting differences or paraphrasing are acceptable if the core information is correct
+
+**INSTRUCTIONS:**
+Evaluate whether the chatbot's response is accurate and consistent with the provided context. Respond with ONLY one word:
+- "true" if the response is accurate and consistent with the context
+- "false" if the response is inaccurate, inconsistent, or not supported by the context
+
+**RESPONSE:**
