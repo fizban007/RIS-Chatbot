@@ -37,6 +37,11 @@ val_questions = pd.read_csv(VALIDATION_QUESTIONS_FILE)
 # Initialize chatbot
 chatbot = EnhancedRAGChatbot(config)
 
+# Build the index from documents
+print("Building index from documents...")
+chatbot.build_index()
+print("Index built successfully!")
+
 # Initialize counters and results list
 correct_answers = 0
 total_questions = 0
