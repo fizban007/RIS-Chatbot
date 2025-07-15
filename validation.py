@@ -4,6 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+import re
 
 load_dotenv()
 
@@ -49,7 +50,7 @@ chatbot.build_index(documents)
 print("Index built successfully!")
 
 # Initialize counters and results list
-correct_answers = 0
+total_score = 0
 total_questions = 0
 results = []
 
@@ -71,8 +72,20 @@ for root_dir, _, files in os.walk(DATA_DIR):
                 print(f"Question: {question}")
                 
                 # Query the LLM (if you have documents loaded)
-                chatbot_response = chatbot.query(question)
-                print(f"ChatbotResponse: {chatbot_response}")
+                try:
+                    chatbot_response = chatbot.query(question)
+                    print(f"ChatbotResponse: {chatbot_response}")
+                except Exception as e:
+                    # Add result showing the error
+                    results.append({
+                        'question': question,
+                        'chatbot_response': f"ERROR: {str(e)}",
+                        'gemini_response': "SKIPPED - LLM unavailable",
+                        'score': 0,
+                        'file': file,
+                        'file_path': file_path
+                    })
+                    continue
                 
                 # Check if the response is correct using Gemini
                 prompt = VALIDATION_PROMPT_TEMPLATE.format(question=question, response=chatbot_response, context=file_content)
@@ -84,12 +97,22 @@ for root_dir, _, files in os.walk(DATA_DIR):
                 gemini_text = gemini_response.text
                 print(f"GeminiResponse: {gemini_text}")
                 
-                # Determine if response is considered "true"
-                # Check if "true" appears in the response (case-insensitive)
-                is_correct = "true" in gemini_text.lower()
+                # Parse the numeric score from Gemini's response
+                try:
+                    # Extract the score (should be 1-5)
+                    score_text = gemini_text.strip()
+                    # Try to extract number from the response
+                    score_match = re.search(r'\b([1-5])\b', score_text)
+                    if score_match:
+                        score = int(score_match.group(1))
+                    else:
+                        print(f"Warning: Could not parse score from '{score_text}', defaulting to 1")
+                        score = 1
+                except (ValueError, AttributeError):
+                    print(f"Warning: Could not parse score from '{gemini_text}', defaulting to 1")
+                    score = 1
                 
-                if is_correct:
-                    correct_answers += 1
+                total_score += score
                 total_questions += 1
                 
                 # Add result to list
@@ -97,12 +120,12 @@ for root_dir, _, files in os.walk(DATA_DIR):
                     'question': question,
                     'chatbot_response': chatbot_response,
                     'gemini_response': gemini_text,
-                    'is_correct': is_correct,
+                    'score': score,
                     'file': file,
                     'file_path': file_path
                 })
                 
-                print(f"{correct_answers}/{total_questions} Correct")
+                print(f"Score: {score}/5 | Running Average: {total_score/total_questions:.2f}")
 
 # Create DataFrame from results
 df = pd.DataFrame(results)
@@ -116,8 +139,9 @@ df.to_csv(output_filename, index=True, index_label='question_number')
 
 print(f"\nResults saved to: {output_filename}")
 print(f"Total questions: {total_questions}")
-print(f"Correct answers: {correct_answers}")
+print(f"Total score: {total_score}")
 if total_questions > 0:
-    print(f"Accuracy: {correct_answers / total_questions * 100:.2f}%")
+    average_score = total_score / total_questions
+    print(f"Average score: {average_score:.2f}/5.0 ({average_score*20:.1f}%)")
 else:
     print("No questions were processed. Please check your DATA_DIR and validation questions file.")
