@@ -13,6 +13,7 @@ LLM_BASE_URL = os.getenv('LLM_BASE_URL')
 LLM_MODEL = os.getenv('LLM_MODEL')
 EMBED_BASE_URL = os.getenv('EMBED_BASE_URL')
 EMBED_MODEL = os.getenv('EMBED_MODEL')
+DATA_DIR = os.getenv('DATA_DIR')
 VALIDATION_PROMPT_TEMPLATE_FILE = os.getenv('VALIDATION_PROMPT_TEMPLATE_FILE')
 if VALIDATION_PROMPT_TEMPLATE_FILE and os.path.exists(VALIDATION_PROMPT_TEMPLATE_FILE):
     with open(VALIDATION_PROMPT_TEMPLATE_FILE, 'r') as f:
@@ -39,7 +40,7 @@ chatbot = EnhancedRAGChatbot(config)
 
 # Build the index from documents
 print("Building index from documents...")
-chatbot.build_index()
+chatbot.build_index(DATA_DIR)
 print("Index built successfully!")
 
 # Initialize counters and results list
@@ -50,7 +51,7 @@ results = []
 # Create timestamp for filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-for root_dir, _, files in os.walk(os.getenv('DATA_DIR')):
+for root_dir, _, files in os.walk(DATA_DIR):
     for file in files:
         if file.endswith('.md'):
             print(f"Checking knowledge from {file}...")
