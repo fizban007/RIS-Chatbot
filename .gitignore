@@ -3,3 +3,4 @@ __pycache__
 chroma_db
 sample_docs
 RIS User Documentation
+.env
