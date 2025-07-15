@@ -1,0 +1,157 @@
+Checking knowledge from Compute1 Quickstart.md...
+Question: How do I know what path to enter in the Mounts field when launching an application in OOD?
+srv  params_from_: Chat format: Content-only
+slot launch_slot_: id  0 | task 0 | processing task
+slot update_slots: id  0 | task 0 | new prompt, n_ctx_slot = 65536, n_keep = 0, n_prompt_tokens = 8471
+slot update_slots: id  0 | task 0 | kv cache rm [0, end)
+slot update_slots: id  0 | task 0 | prompt processing progress, n_past = 2048, n_tokens = 2048, progress = 0.241766
+slot update_slots: id  0 | task 0 | kv cache rm [2048, end)
+slot update_slots: id  0 | task 0 | prompt processing progress, n_past = 4096, n_tokens = 2048, progress = 0.483532
+slot update_slots: id  0 | task 0 | kv cache rm [4096, end)
+slot update_slots: id  0 | task 0 | prompt processing progress, n_past = 6144, n_tokens = 2048, progress = 0.725298
+slot update_slots: id  0 | task 0 | kv cache rm [6144, end)
+slot update_slots: id  0 | task 0 | prompt processing progress, n_past = 8192, n_tokens = 2048, progress = 0.967064
+slot update_slots: id  0 | task 0 | kv cache rm [8192, end)
+slot update_slots: id  0 | task 0 | prompt processing progress, n_past = 8471, n_tokens = 279, progress = 1.000000
+slot update_slots: id  0 | task 0 | prompt done, n_past = 8471, n_tokens = 279
+slot      release: id  0 | task 0 | stop processing: n_past = 8643, truncated = 0
+slot print_timing: id  0 | task 0 |
+prompt eval time =   20803.67 ms /  8471 tokens (    2.46 ms per token,   407.19 tokens per second)
+       eval time =    4218.09 ms /   173 tokens (   24.38 ms per token,    41.01 tokens per second)
+      total time =   25021.76 ms /  8644 tokens
+srv  update_slots: all slots are idle
+srv  log_server_r: request: POST /v1/chat/completions 127.0.0.1 200
+INFO:httpx:HTTP Request: POST http://localhost:8000/v1/chat/completions "HTTP/1.1 200 OK"
+ChatbotResponse: When launching an application in Open OnDemand (OOD), the path to enter in the **Mounts** field should follow this format:
+
+```
+/storageN/fs1/${STORAGE_ALLOCATION}/Active:/storageN/fs1/${STORAGE_ALLOCATION}/Active
+```
+
+Replace `${STORAGE_ALLOCATION}` with the name of your storage allocation. The part before the colon is the full path to your storage allocation, and the part after the colon is how you want the path to appear in the application (it's recommended to keep it the same).
+
+For example, if your storage allocation is named `myproject`, the Mounts field should look like this:
+
+```
+/storageN/fs1/myproject/Active:/storageN/fs1/myproject/Active
+```
+
+This ensures your storage is properly mounted when the application starts.
+
+**Sources:** Compute1+Quickstart, Connecting+to+Storage+from+MacOS, Connecting+to+Storage+from+Windows, Open+OnDemand
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:httpx:HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent "HTTP/1.1 200 OK"
+INFO:google_genai.models:AFC remote call 1 is done.
+GeminiResponse: true
+
+1/1 Correct
+Question: Do I need to SSH into compute1 every time before using Open On Demand, and how do I do that from Windows?
+srv  params_from_: Chat format: Content-only
+slot launch_slot_: id  0 | task 178 | processing task
+slot update_slots: id  0 | task 178 | new prompt, n_ctx_slot = 65536, n_keep = 0, n_prompt_tokens = 8383
+slot update_slots: id  0 | task 178 | kv cache rm [5612, end)
+slot update_slots: id  0 | task 178 | prompt processing progress, n_past = 7660, n_tokens = 2048, progress = 0.244304
+slot update_slots: id  0 | task 178 | kv cache rm [7660, end)
+slot update_slots: id  0 | task 178 | prompt processing progress, n_past = 8383, n_tokens = 723, progress = 0.330550
+slot update_slots: id  0 | task 178 | prompt done, n_past = 8383, n_tokens = 723
+slot      release: id  0 | task 178 | stop processing: n_past = 8586, truncated = 0
+slot print_timing: id  0 | task 178 |
+prompt eval time =    1627.87 ms /  2771 tokens (    0.59 ms per token,  1702.22 tokens per second)
+       eval time =    4973.38 ms /   204 tokens (   24.38 ms per token,    41.02 tokens per second)
+      total time =    6601.25 ms /  2975 tokens
+srv  update_slots: all slots are idle
+srv  log_server_r: request: POST /v1/chat/completions 127.0.0.1 200
+INFO:httpx:HTTP Request: POST http://localhost:8000/v1/chat/completions "HTTP/1.1 200 OK"
+ChatbotResponse: No, you do not need to SSH into Compute1 every time before using Open On Demand (OOD). You only need to connect via SSH at least once to set up your user home directory. After that initial setup, you can directly access OOD via your web browser at <http://ood.ris.wustl.edu>.
+
+To SSH into Compute1 from Windows, you can use the built-in command prompt or PowerShell (Windows 10 or 11) or use software like PuTTY or MobaXterm. The command to connect is:
+
+```
+ssh washukey@compute1-client-1.ris.wustl.edu
+```
+
+If you are off campus, you will need to use a VPN (either `msvpn.wusm.wustl.edu` or `danforthvpn.wustl.edu`) to access Compute1. Instructions for accessing the WashU VPNs can be found [here](https://it.wustl.edu/items/connect/).
+
+**Sources:** Compute1+Quickstart, Local+VNC+Viewer, Open+OnDemand, Visual+Studio+Code+on+Compute1
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:httpx:HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent "HTTP/1.1 200 OK"
+INFO:google_genai.models:AFC remote call 1 is done.
+GeminiResponse: true
+
+2/2 Correct
+Question: Which VPN address should I connect to when I’m off-campus and want to reach compute1?
+srv  params_from_: Chat format: Content-only
+slot launch_slot_: id  0 | task 384 | processing task
+slot update_slots: id  0 | task 384 | new prompt, n_ctx_slot = 65536, n_keep = 0, n_prompt_tokens = 7274
+slot update_slots: id  0 | task 384 | reusing chunk with size 1102, shifting KV cache [7222, 8324) -> [3600, 4702)
+slot update_slots: id  0 | task 384 | kv cache rm [4702, end)
+slot update_slots: id  0 | task 384 | prompt processing progress, n_past = 6750, n_tokens = 2048, progress = 0.281551
+slot update_slots: id  0 | task 384 | kv cache rm [6750, end)
+slot update_slots: id  0 | task 384 | prompt processing progress, n_past = 7274, n_tokens = 524, progress = 0.353588
+slot update_slots: id  0 | task 384 | prompt done, n_past = 7274, n_tokens = 524
+slot      release: id  0 | task 384 | stop processing: n_past = 7353, truncated = 0
+slot print_timing: id  0 | task 384 |
+prompt eval time =    1529.56 ms /  2572 tokens (    0.59 ms per token,  1681.53 tokens per second)
+       eval time =    1918.83 ms /    80 tokens (   23.99 ms per token,    41.69 tokens per second)
+      total time =    3448.39 ms /  2652 tokens
+srv  update_slots: all slots are idle
+srv  log_server_r: request: POST /v1/chat/completions 127.0.0.1 200
+INFO:httpx:HTTP Request: POST http://localhost:8000/v1/chat/completions "HTTP/1.1 200 OK"
+ChatbotResponse: When you're off-campus and need to access Compute1, you should connect to one of the following VPN addresses:
+
+- `msvpn.wusm.wustl.edu`
+- `danforthvpn.wustl.edu`
+
+These VPNs will allow you to access the Compute1 platform. If you encounter any issues, you may need to contact WashU IT for further assistance.
+
+**Sources:** Compute1+Quickstart, Local+VNC+Viewer, Port+Forwarding, Visual+Studio+Code+on+Compute1
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:httpx:HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent "HTTP/1.1 200 OK"
+INFO:google_genai.models:AFC remote call 1 is done.
+GeminiResponse: true
+
+3/3 Correct
+Checking knowledge from Open OnDemand.md...
+Checking knowledge from Access Storage Volumes.md...
+Checking knowledge from Using OFED in Docker Images.md...
+Checking knowledge from Software Development Using Compute1.md...
+Checking knowledge from Compute1 Condo and Subscription Queues.md...
+Checking knowledge from Parallel Computing.md...
+Checking knowledge from R Tutorial.md...
+Checking knowledge from RTM.md...
+Checking knowledge from Job Execution Examples.md...
+Checking knowledge from Space Management.md...
+Checking knowledge from Port Forwarding.md...
+Checking knowledge from Using CUDA in Docker Images.md...
+Checking knowledge from Visual Studio Code on Compute1.md...
+Checking knowledge from Docker Wrapper Environment Variables.md...
+Checking knowledge from Intel® Compiler Base Tutorial.md...
+Checking knowledge from Create Custom Conda Environment.md...
+Checking knowledge from Compute2 General Guidelines.md...
+Checking knowledge from Using Slurm in Containers.md...
+Checking knowledge from Interactive Jobs (srun).md...
+Checking knowledge from LSF to Slurm Translator.md...
+Checking knowledge from Compute2 Quickstart.md...
+Checking knowledge from Compute2 MPI.md...
+Checking knowledge from Storage Platforms on Compute2.md...
+Checking knowledge from Using Containers on Compute2.md...
+Checking knowledge from Transitioning Between slurm and LSF.md...
+Checking knowledge from Batch Jobs (sbatch).md...
+Checking knowledge from Monitoring Jobs and Partitions_Queues.md...
+Checking knowledge from Storage1 Access Control.md...
+Checking knowledge from Connecting to Storage from Windows.md...
+Checking knowledge from Moving Data With Rclone.md...
+Checking knowledge from Using Globus Connect Personal.md...
+Checking knowledge from Moving Data With Globus CLI.md...
+Checking knowledge from Recovering Data From Snapshots.md...
+Checking knowledge from Connecting to Storage from Linux.md...
+Checking knowledge from Connecting to Storage from MacOS.md...
+Checking knowledge from Troubleshooting Connection to the Storage Platforms.md...
+Checking knowledge from Storage2 Access Control.md...
+Checking knowledge from Moving Data From Google Storage to RIS Storage via gsutil on Compute1.md...
+Checking knowledge from Moving Data With Globus.md...
+
+Results saved to: val_20250715_185215.csv
+Total questions: 3
+Correct answers: 3
+Accuracy: 100.00%
