@@ -45,7 +45,7 @@ results = []
 # Create timestamp for filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-for files, _, root_dir in os.walk(os.getenv('DATA_DIR')):
+for root_dir, _, files in os.walk(os.getenv('DATA_DIR')):
     for file in files:
         if file.endswith('.md'):
             print(f"Checking knowledge from {file}...")
@@ -105,4 +105,7 @@ df.to_csv(output_filename, index=True, index_label='question_number')
 print(f"\nResults saved to: {output_filename}")
 print(f"Total questions: {total_questions}")
 print(f"Correct answers: {correct_answers}")
-print(f"Accuracy: {correct_answers / total_questions * 100:.2f}%")
+if total_questions > 0:
+    print(f"Accuracy: {correct_answers / total_questions * 100:.2f}%")
+else:
+    print("No questions were processed. Please check your DATA_DIR and validation questions file.")
