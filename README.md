@@ -2,7 +2,7 @@
 
 RIS-Bot is a chatbot tool for answering questions about the Research Infrastructure Services (RIS) HPC platform at Washignton University in St. Louis. RIS-Bot performs Retrieval Augmented Generation (RAG) on the documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu), with a self-contained pipeline for data retrieval, vector embedding and RAG generation.
 
-# Installation
+# Deployment
 
 ## Mounting core libraries
 RIS-bot requires certain core libraries such as CUDA. This installation guide will cover how to run the program on RIS where the appropriate versions of these libraries have already been installed. The user should install these libraries themselves before following next steps if deploying to a different platform.
@@ -124,3 +124,23 @@ Start the Streamlit application:
 ```
 STREAMLIT_SERVER_ADDRESS=0.0.0.0 streamlit run streamlit_app_simple.py &
 ```
+
+## Access the Website
+You can access the web UI at `compute1-exec-xxx.ris.wustl.edu:8301`.
+
+# Validation
+## Generate Questions
+```
+cd validation
+python generate_questions_gemini.py
+```
+This will create three questions for each page in RIS Documentation using Gemini 2.5-Pro with the following prompt:
+>Create 3 frequently asked questions (FAQs) based on the following document. Write the kinds of questions that users commonly ask after reading this document\
+\
+Document: {document_name}
+\
+Content: {document_content}
+\
+Please provide exactly 3 questions, one per line, without numbering or bullet points:
+
+OpenAI o3 is also available
