@@ -1,164 +1,126 @@
-# Local RAG Chatbot with LlamaIndex and Chroma
+# RIS-Bot
 
-A high-performance RAG (Retrieval-Augmented Generation) chatbot using locally hosted LLMs through OpenAI-compatible APIs. Features advanced capabilities including query caching, performance monitoring, collection management, and comprehensive backup/restore functionality.
+RIS-Bot is a chatbot tool for answering questions about the Research Infrastructure Services (RIS) HPC platform at Washignton University in St. Louis. RIS-Bot performs Retrieval Augmented Generation (RAG) on the documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu), with a self-contained pipeline for data retrieval, vector embedding and RAG generation.
 
-## Features
+# Installation
 
-### Core Capabilities
-- Local LLM and embedding models via OpenAI-compatible API
-- Persistent vector storage with ChromaDB
-- Document chunking with configurable parameters
-- Metadata extraction and management
-- Source tracking and reference formatting
+## Mounting core libraries
+RIS-bot requires certain core libraries such as CUDA. This installation guide will cover how to run the program on RIS where the appropriate versions of these libraries have already been installed. The user should install these libraries themselves before following next steps if deploying to a different platform.
 
-### Advanced Features
-- **Query Caching**: LRU cache with configurable TTL for faster responses
-- **Performance Monitoring**: Track query times, cache hits, and embedding generation
-- **Collection Management**: Create, switch, and manage multiple collections
-- **Document Management**: Update, delete, and list documents by source
-- **Backup/Restore**: Export and import entire collections
-- **Batch Processing**: Optimized handling of large document sets
-- **Configuration Management**: Centralized config with save/load functionality
+```
+export LSF_DOCKER_VOLUMES="/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs:/usr/local/modules /storage2/fs1/dt-summer-corp:/storage2/fs1/dt-summer-corp $HOME:$HOME"
+```
 
-## Setup
+## Mapping Ports
+By default, the chat web interface will run on port `8501` `(0.0.0.0:8501)` on the Docker image, and we map this to port `8003` `(compute1-exec-xxx.ris.wustl.edu:8301)` for users to access.
+ ```
+ export LSF_DOCKER_PORTS='8003:8501'
+ ```
 
-1. Install dependencies:
-```bash
+## Job Submission
+ Submit the job requesting 1 GPU. Use the ris_chatbot docker image.
+ ```
+ bsub -Is -G compute-artsci -q artsci-interactive -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+ ```
+
+## Switch to working directory
+The development version exists in `storage2` and can be accessed via:
+```
+cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/ragbot-dev
+```
+
+Otherwise, change to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot):
+```
+cd YOUR_WORKING_DIR
+git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
+cd RIS-Chatbot
+```
+
+## Environment Setup
+Change `.env.example` to `.env` and potentially tweak the settings:
+```
+mv .env.example .env
+```
+
+Create and activate a virtual environment:
+```
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install the requirements:
+```
 pip install -r requirements.txt
 ```
 
-2. Start your local OpenAI-compatible servers:
-   - **Embedding server**: Port 8001 (e.g., vLLM, FastChat, LocalAI)
-   - **LLM server**: Port 8000
-
-Example with vLLM:
-```bash
-# Terminal 1: Embedding server
-python -m vllm.entrypoints.openai.api_server \
-  --model nomic-ai/nomic-embed-text-v1.5 \
-  --port 8001 \
-  --served-model-name nomic-embed-text
-
-# Terminal 2: LLM server  
-python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Llama-3.2-3B-Instruct \
-  --port 8000
+## Setting up the RAG database
+Export all pages from Confluence. The first time you run this, it may ask for some authentication details. Choose the first option and input the root URL of the RIS Confluence instance: `https://washu.atlassian.net/`. This will take a while to run (~5 minutes) and export all the pages to the `RIS User Documentation` directory:
+```
+python confluence.py
 ```
 
-3. Run the examples:
-```bash
-# Basic example
-python example_usage.py
-
-# Comprehensive test suite
-python test_rag_chatbot.py
+Clean up the markdown files to change the code block syntax from ```java to ```:
+```
+python fix_markdown.py
 ```
 
-## Basic Usage
-
-```python
-from rag_chatbot import EnhancedRAGChatbot, RAGConfig
-from llama_index.core import Document
-
-# Initialize with default config
-chatbot = EnhancedRAGChatbot()
-
-# Or with custom configuration
-config = RAGConfig(
-    embed_batch_size=128,
-    chunk_size=384,
-    query_cache_ttl=1800,
-    enable_monitoring=True
-)
-chatbot = EnhancedRAGChatbot(config)
-
-# Load documents
-docs = chatbot.load_documents(directory_path="./documents")
-chatbot.build_index(docs)
-
-# Query
-response = chatbot.query("Your question here")
-print(response)
+Compute the embeddings and store them in the RAG database:
+```
+python manage_rag.py load-docs --dir ./RIS\ User\ Documentation/RIS\ User\ Documentation
 ```
 
-## Advanced Usage
-
-### Collection Management
-```python
-# List collections
-collections = chatbot.list_collections()
-
-# Switch collection
-chatbot.switch_collection("new_collection")
-
-# Get collection stats
-stats = chatbot.get_collection_stats()
+If you need to clear the database and re-index it:
+```
+python manage_rag.py clear-collection
 ```
 
-### Document Management
-```python
-# List document sources
-sources = chatbot.list_sources()
-
-# Update document
-chatbot.update_document(doc_id, new_text, new_metadata)
-
-# Delete documents
-chatbot.delete_documents(source_filter="old_doc.txt")
+## Setting up the LLM server
+Clone the llama.cpp repository. We use it to run the LLM server that powers the chatbot:
+```
+git clone https://github.com/ggml-org/llama.cpp.git
+cd llama.cpp
 ```
 
-### Performance Monitoring
-```python
-# Get performance summary
-perf = chatbot.get_performance_summary()
-print(f"Avg query time: {perf['avg_query_time']:.3f}s")
-print(f"Cache hit rate: {perf['cache_hit_rate']:.2%}")
-
-# Clear cache
-chatbot.clear_cache()
+Target a cuda-based build:
+```
+cmake -B build -DGGML_CUDA=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
 ```
 
-### Backup and Restore
-```python
-# Export collection
-backup_path = chatbot.export_collection("./backups")
-
-# Import collection
-new_collection = chatbot.import_collection(backup_path)
+Build the server. If you only requested 1 CPU core then it may take a while:
+```
+cmake --build build -j
 ```
 
-## Configuration Options
-
-Key configuration parameters in `RAGConfig`:
-
-- `embed_batch_size`: Batch size for embedding generation (default: 64)
-- `chunk_size`: Document chunk size (default: 512)
-- `chunk_overlap`: Overlap between chunks (default: 50)
-- `similarity_top_k`: Number of similar chunks to retrieve (default: 3)
-- `query_cache_ttl`: Cache time-to-live in seconds (default: 3600)
-- `enable_monitoring`: Enable performance monitoring (default: True)
-
-Save/load configurations:
-```python
-# Save config
-config.save_to_file("my_config.json")
-
-# Load config
-config = RAGConfig.from_file("my_config.json")
+Download the model. May need to authenticate when running the first time:
+```
+huggingface-cli download unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF --include "Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf" --local-dir models/
 ```
 
-## Performance
+Run the server. Eventually we may need to explore switching to vllm since it's better optimized for many users:
+```
+LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/ ./build/bin/llama-server --jinja --port 8000 --model models/Mistral-Small-3.2-24B-Instruct-2506-UD-Q8_K_XL.gguf -ngl 99 -fa -c 65536 --mlock --cache-reuse 256 --temp 0.15 --top-k -1 --top-p 1.00 &
+```
 
-Expected performance improvements:
-- **Query Speed**: 2-5x faster with caching enabled
-- **Batch Processing**: 30-50% faster embedding generation
-- **Cache Hit Rate**: 40-60% for typical usage patterns
-- **Scalability**: Tested with 100k+ document chunks
+Return to the main directory:
+```
+cd ..
+```
 
-## Documentation
+## Alternative: Run the server with vllm
+Install vllm (eventually we can put this in requirements.txt):
+```
+pip install vllm
+```
 
-See [RAG_CHATBOT_FEATURES.md](RAG_CHATBOT_FEATURES.md) for detailed feature documentation and best practices.
+Serve the same model as above. This one by default is using the unquantized model so it's slower on single user, but throughput should be better for multiple users. HF_HOME is needed to avoid downloading the model to the home directory:
+```
+HF_HOME=huggingface/ vllm serve mistralai/Mistral-Small-3.2-24B-Instruct-2506 --tokenizer_mode mistral --config_format mistral --load_format mistral --tool-call-parser mistral --enable-auto-tool-choice &
+```
 
-## License
+Note that if we use vllm, then the LLM_MODEL in .env needs to be set to `mistralai/Mistral-Small-3.2-24B-Instruct-2506`, which is the same as the model we downloaded above.
 
-MIT
+## Run the streamlit app
+Start the Streamlit application:
+```
+STREAMLIT_SERVER_ADDRESS=0.0.0.0 streamlit run streamlit_app_simple.py &
+```
