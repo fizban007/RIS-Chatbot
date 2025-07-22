@@ -37,12 +37,14 @@ cd RIS-Chatbot
 ```
 
 ## Environment Setup
-Change `.env.example` to `.env` and potentially tweak the settings:
+Change `.env.example` to `.env` and change the settings if necessary:
 ```
-mv .env.example .env
+cp .env.example .env
 ```
 
-You would need to add your own Gemini API key.
+*cp does not cause any changes that Git tracks, so there will be no conflicts*
+
+You would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
 
 Create and activate a virtual environment:
 ```
