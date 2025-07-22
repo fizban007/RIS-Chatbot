@@ -73,6 +73,23 @@ def sanitize_filename(filename):
     # sanitized = re.sub(r'\s+', '_', sanitized)
     return sanitized
 
+def clean_code_tags_in_markdown(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Replace ```java with ```
+        updated_content = re.sub(r'```java\b', '```', content)
+        
+        # Only write back if changes were made
+        if updated_content != content:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(updated_content)
+            print(f"Updated: {file_path}")
+        
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+
 def export_page_with_metadata(page, path_prefix=""):
     """Export a single page and create its metadata JSON file"""
     page_id = page['id']
@@ -98,6 +115,7 @@ def export_page_with_metadata(page, path_prefix=""):
     try:
         # Export the page using cf-export
         results = subprocess.run(['cf-export', 'page', page_id], check=True)
+        clean_code_tags_in_markdown(markdown_path)
         
         # Create metadata dictionary
         metadata = {
