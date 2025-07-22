@@ -1,4 +1,3 @@
-- Add deploy guide
 - Add the functionality to use up arrow to navigate prompt history
 - Make library update incremental by looking at page update timestamp
 - Fine tune the system prompt (e.g. add additional info)
