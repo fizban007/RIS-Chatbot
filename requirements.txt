@@ -10,3 +10,4 @@ confluence-markdown-exporter
 huggingface_hub[cli]
 google-genai
 openai
+vllm
