@@ -22,7 +22,7 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 # Get Rust for building vllm
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+ENV PATH="/root/.cargo/bin:$PATH"
 
 # Obtain cuda drivers for 12.4
 ENV CUDA_VERSION=12.4.0
