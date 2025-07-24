@@ -2,6 +2,7 @@
 
 RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline for assisting researchers with WashU's High Performance Computing platform for research, Research Infrastructure Services (RIS). The pipeline consists of the following components:
 
+
 **Data Collector:** 
 RIS-bot gains its knowledge from [WashU RIS Documentation](https://docs.ris.wustl.edu) hosted on Confluence. `confluence.py` can be used to scrape the entire documentation space at once or perform a partial scrape of documents updated within a given time frame. The time frame can be set within the program. One of the future goals of this project is to remove this parameter and automatically scrape any documents that have a later modification time on Confluence than locally.
 
