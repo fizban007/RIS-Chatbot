@@ -1,6 +1,21 @@
-# RIS-Bot
+# Overview
 
-RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline injecting a chatbot with documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu) to answer questions about the WashU Research Infrastructure Services (RIS) HPC platform. The pipeline is fully self-contained, with support for incremental data retrieval, vector embedding, RAG generation, performance validation, and web hosting.
+RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline for assisting researchers with WashU's High Performance Computing platform for research, Research Infrastructure Services (RIS). The pipeline consists of the following components:
+
+## Data Collector
+RIS-bot gains its knowledge from [WashU RIS Documentation](https://docs.ris.wustl.edu) hosted on Confluence. `confluence.py` can be used to scrape the entire documentation space at once or perform a partial scrape of documents updated within a given time frame. The time frame can be set within the program. One of the future goals of this project is to remove this parameter and automatically scrape any documents that have a later modification time on Confluence than locally.
+
+## Vector Database
+The scraped documentation is embedded by an embedding model of the user's choice (specified in .env) and stored in a vector database for efficient inference-time retrieval. The vector database can be deleted and re-embedded to update its contents. It is a future goal of this project to allow for re-embedding of only files that were recently updated by `confluence.py`. All functionality related to the vector database is run through `manage_rag.py`.
+
+At inference-time, the query is matched against the vector database using a cosine similarity test to produce the most semantically similar documents. These documents are then provided to the chatbot to provide context for answering the user questions.
+
+## LLM Server
+The inference LLM is hosted on one of the compute-node / server's ports. The user may select any open-source model through the `.env` file or provide an API key for paywalled models (not extensively tested). 
+
+## Web Server
+On a separate port, the web server provides a Graphical Web UI that the user can connect to for querying the chatbot. The server instantiates an `EnhancedRAGChatbot()` object which queries the vector database, augments the user's questions with the system prompt and retrieved context, and contacts the LLM Server to generate answers.
+
 
 ## Environment Setup
 
@@ -25,6 +40,8 @@ If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizb
 - **Llama.cpp / VLLM** (LLM server)
 
 - **PyTorch** (VLLM dependency)
+
+It is recommended to create a separate virtual environment using tools such as `uv` or `conda`. Follow along for more detailed steps using `venv`.
 
 With CUDA installed, mount the folder you installed CUDA to as well as your storage folder(s):
 ```
