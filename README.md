@@ -46,7 +46,7 @@ It is recommended to create a separate virtual environment using tools such as `
 
 3. Connect to a compute node with 1 GPU and run your Docker container.
 
-*(Example Using RIS Steps 1-3)*
+*(Example Using RIS)*
 Put the following in a bash script file with your own parameters and run it
 ``` bash
 # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
@@ -57,8 +57,12 @@ export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
 # Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
 bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
 ```
-
-
+4. Switch to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot)
+   ```
+   cd YOUR_WORKING_DIR
+   git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
+   cd RIS-Chatbot
+   ```
 ## Switch to working directory
 The development version exists in `storage2` and can be accessed via:
 ```
@@ -66,11 +70,7 @@ cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructur
 ```
 
 Otherwise, change to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot):
-```
-cd YOUR_WORKING_DIR
-git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
-cd RIS-Chatbot
-```
+
 
 ## Environment Setup
 Change `.env.example` to `.env` and change the settings if necessary:
