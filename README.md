@@ -1,4 +1,4 @@
-# Overview
+## Overview
 
 RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline for assisting researchers with WashU's High Performance Computing platform for research, Research Infrastructure Services (RIS). The pipeline consists of the following components:  
 1. **Data Collector:**  
@@ -38,31 +38,26 @@ If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizb
 
 It is recommended to create a separate virtual environment using tools such as `uv` or `conda`. Follow along for more detailed steps using `venv`.
 
-With CUDA installed, mount the folder you installed CUDA to as well as your storage folder(s):
-```
-export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
-```
-**Replace `<PATH TO CUDA 12.4> with your CUDA 12.4 folder, and <YOUR STORAGE LOCATION> with your storage location.**
-
-
-## Mounting core libraries
-RIS-bot requires certain core libraries such as CUDA. This installation guide will cover how to run the program on RIS where the appropriate versions of these libraries have already been installed. The user should install these libraries themselves before following next steps if deploying to a different platform.
-
-```
-export LSF_DOCKER_VOLUMES="/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs:/usr/local/modules /storage2/fs1/dt-summer-corp:/storage2/fs1/dt-summer-corp $HOME:$HOME"
-```
-
-## Mapping Ports
-By default, the chat web interface will run on port `8501` `(0.0.0.0:8501)` on the Docker image, and we map this to port `8003` `(compute1-exec-xxx.ris.wustl.edu:8003)` for users to access.
- ```
- export LSF_DOCKER_PORTS='8003:8501'
- ```
-
-## Job Submission
- Submit the job requesting 1 GPU. Use the ris_chatbot docker image.
+## Deployment (with example for RIS)
+1.  Make sure the program has access to CUDA 12.4, your storage location, and your home directory
+   
+2. *(RIS Specific Step)* By default, the web UI will be hosted on port `8501` `(0.0.0.0:8501)` of the Docker container. You can map this to any available port of your choice. 
+   **This is the port users will connect to.**
+   ```
+   
+   ```
+3. Connect to a compute node with 1 GPU and run your Docker container.
+   
  ```
  bsub -Is -G compute-artsci -q artsci-interactive -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
  ```
+*(Example Using RIS Steps 1-3)*
+   ``` bash
+   # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (`/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs`), and `<YOUR STORAGE LOCATION>` with your storage location.
+   export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
+   # Replace `<PORT OF CHOICE>` with your desired port.
+   export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
+   ```
 
 ## Switch to working directory
 The development version exists in `storage2` and can be accessed via:
