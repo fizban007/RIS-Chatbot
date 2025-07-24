@@ -4,27 +4,27 @@ RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline injecting
 
 ## Environment Setup
 
-**System Requirements:**
+### System Requirements:
 
-**- CUDA 12.4,**
+- **CUDA 12.4**
 
-**- Docker image**
+- **Docker image**
 
 If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizban007/ris_chatbot` Docker image, or build your own compatible image from `Dockerfile.chatbot`. Otherwise, you will need to download CUDA 12.4 first. CUDA 12.4 is available to members of Digital Transformations Summer Corps at `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs`.
 
-**Program Requirements:**
+### Program Requirements:
 
-**- LlamaIndex components** (indexing documentation to facilitate RAG)
+- **LlamaIndex components** (indexing documentation to facilitate RAG)
 
-**- ChromaDB** (vector database for storing vectorized documentation)
+- **ChromaDB** (vector database for storing vectorized documentation)
 
-**- huggingface hub** (downloading models for embedding and inference)
+- **huggingface hub** (downloading models for embedding and inference)
 
-**- OpenAI and Gemini** (API support for validation Q&A generation and LLM-based judging)
+- **OpenAI and Gemini** (API support for validation Q&A generation and LLM-based judging)
 
-**- Llama.cpp / VLLM** (LLM server)
+- **Llama.cpp / VLLM** (LLM server)
 
-**- PyTorch** (VLLM dependency)
+- **PyTorch** (VLLM dependency)
 
 With CUDA installed, mount the folder you installed CUDA to as well as your storage folder(s):
 ```
