@@ -1,8 +1,26 @@
 # RIS-Bot
 
-RIS-Bot is a chatbot tool for answering questions about the Research Infrastructure Services (RIS) HPC platform at Washignton University in St. Louis. RIS-Bot performs Retrieval Augmented Generation (RAG) on the documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu), with a self-contained pipeline for data retrieval, vector embedding and RAG generation.
+RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline injecting a chatbot with documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu) to answer questions about the WashU Research Infrastructure Services (RIS) HPC platform. The pipeline is fully self-contained, with support for incremental data retrieval, vector embedding, RAG generation, performance validation, and web hosting.
 
-# Deployment
+## Environment Setup
+**System Requirements:**
+**- CUDA 12.4,**
+**- Docker image**
+If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizban007/ris_chatbot` Docker image, or build your own compatible image from `Dockerfile.chatbot`. Otherwise, you will need to download CUDA 12.4 first. CUDA 12.4 is available to members of Digital Transformations Summer Corps at `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs`.
+**Program Requirements:**
+**- LlamaIndex components** (indexing documentation to facilitate RAG)
+**- ChromaDB** (vector database for storing vectorized documentation)
+**- huggingface hub** (downloading models for embedding and inference)
+**- OpenAI and Gemini** (API support for validation Q&A generation and LLM-based judging)
+**- Llama.cpp / VLLM** (LLM server)
+**- PyTorch** (VLLM dependency)
+
+With CUDA installed, mount the folder you installed CUDA to as well as your storage folder(s):
+```
+export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
+```
+**Replace `<PATH TO CUDA 12.4> with your CUDA 12.4 folder, and <YOUR STORAGE LOCATION> with your storage location.**
+
 
 ## Mounting core libraries
 RIS-bot requires certain core libraries such as CUDA. This installation guide will cover how to run the program on RIS where the appropriate versions of these libraries have already been installed. The user should install these libraries themselves before following next steps if deploying to a different platform.
