@@ -41,23 +41,23 @@ It is recommended to create a separate virtual environment using tools such as `
 ## Deployment (with example for RIS)
 1.  Make sure the program has access to CUDA 12.4, your storage location, and your home directory
    
-2. *(RIS Specific Step)* By default, the web UI will be hosted on port `8501` `(0.0.0.0:8501)` of the Docker container. You can map this to any available port of your choice. 
+2. By default, the web UI will be hosted on port `8501` `(0.0.0.0:8501)` of the Docker container. You can map this to any available port of your choice. 
    **This is the port users will connect to.**
-   ```
-   
-   ```
+
 3. Connect to a compute node with 1 GPU and run your Docker container.
-   
- ```
- bsub -Is -G compute-artsci -q artsci-interactive -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
- ```
+
 *(Example Using RIS Steps 1-3)*
-   ``` bash
-   # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (`/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs`), and `<YOUR STORAGE LOCATION>` with your storage location.
-   export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
-   # Replace `<PORT OF CHOICE>` with your desired port.
-   export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
-   ```
+Put the following in a bash script file with your own parameters and run it
+``` bash
+# Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
+# Replace `<YOUR STORAGE LOCATION>` with your storage location (e.g. `/storage2/fs1/dt-summer-corp/Active`).
+export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
+# Replace `<PORT OF CHOICE>` with your desired port.
+export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
+# Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
+bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+```
+
 
 ## Switch to working directory
 The development version exists in `storage2` and can be accessed via:
