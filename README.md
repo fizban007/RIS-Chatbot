@@ -12,7 +12,7 @@ The inference LLM is hosted on one of the compute-node / server's ports. The use
 On a separate port, the web server provides a Graphical Web UI that the user can connect to for querying the chatbot. The server instantiates an `EnhancedRAGChatbot()` object which queries the vector database, augments the user's questions with the system prompt and retrieved context, and contacts the LLM Server to generate answers.
 
 
-## Environment Setup
+## Prerequisites
 
 ### System Requirements:
 
@@ -38,7 +38,7 @@ If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizb
 
 It is recommended to create a separate virtual environment using tools such as `uv` or `conda`. Follow along for more detailed steps using `venv`.
 
-## Deployment (with example for RIS)
+## Environment Setup (with example for RIS)
 1.  Make sure the program has access to CUDA 12.4, your storage location, and your home directory
    
 2. By default, the web UI will be hosted on port `8501` `(0.0.0.0:8501)` of the Docker container. You can map this to any available port of your choice. 
@@ -46,52 +46,47 @@ It is recommended to create a separate virtual environment using tools such as `
 
 3. Connect to a compute node with 1 GPU and run your Docker container.
 
-*(Example Using RIS)*
-Put the following in a bash script file with your own parameters and run it
-``` bash
-# Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
-# Replace `<YOUR STORAGE LOCATION>` with your storage location (e.g. `/storage2/fs1/dt-summer-corp/Active`).
-export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
-# Replace `<PORT OF CHOICE>` with your desired port.
-export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
-# Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
-bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
-```
-4. Switch to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot)
+4. Switch to your working directory and clone this repository
    ```
    cd YOUR_WORKING_DIR
    git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
    cd RIS-Chatbot
    ```
-## Switch to working directory
-The development version exists in `storage2` and can be accessed via:
+*(Example Using RIS)*
+For `dt-summer-corp` and admin
 ```
 cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/ragbot-dev
 ```
 
-Otherwise, change to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot):
+5. Set your own configurations as environment variables. A template is provided as `.env.example`. Note that you would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
+   ```
+   cp .env.example .env
+   ```
+   *cp does not cause any changes that Git tracks, so there will be no conflicts*
 
 
-## Environment Setup
-Change `.env.example` to `.env` and change the settings if necessary:
-```
-cp .env.example .env
-```
+6. Create and activate a virtual environment in the chatbot directory. Then, install the requirements.
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-*cp does not cause any changes that Git tracks, so there will be no conflicts*
-
-You would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
-
-Create and activate a virtual environment:
-```
-python3 -m venv venv
-source venv/bin/activate
-```
-
-Install the requirements:
-```
-pip install -r requirements.txt
-```
+   *(Example Using RIS)*
+   Create a bash script
+   ```bash
+   cd ~
+   vim risbot.sh
+   ```
+   ``` bash
+   # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
+   # Replace `<YOUR STORAGE LOCATION>` with your storage location (e.g. `/storage2/fs1/dt-summer-corp/Active`).
+   export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
+   # Replace `<PORT OF CHOICE>` with your desired port.
+   export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
+   # Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
+   bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+   ```
 
 ## Setting up the RAG database
 Export all pages from Confluence. The first time you run this, it may ask for some authentication details. Choose the first option and input the root URL of the RIS Confluence instance: `https://washu.atlassian.net/`. This will take a while to run (~5 minutes) and export all the pages to the `RIS User Documentation` directory:
