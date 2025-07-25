@@ -1,5 +1,12 @@
+huggingface/
+.python-version
+llama.cpp
+uv.lock
+pyproject.toml
 .venv
+venv/
 __pycache__
 chroma_db
 sample_docs
 **/.env
+val**.csv
