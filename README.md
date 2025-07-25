@@ -48,15 +48,10 @@ It is recommended to create a separate virtual environment using tools such as `
 
 4. Switch to your working directory and clone this repository
    ```
-   cd YOUR_WORKING_DIR
+   cd <YOUR_WORKING_DIR>
    git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
    cd RIS-Chatbot
    ```
-*(Example Using RIS)*
-For `dt-summer-corp` and admin
-```
-cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/ragbot-dev
-```
 
 5. Set your own configurations as environment variables. A template is provided as `.env.example`. Note that you would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
    ```
@@ -73,11 +68,46 @@ cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructur
    ```
 
    *(Example Using RIS)*
-   Create a bash script
+   First create a configuration file for your job,
+   ```bash
+   vim ~/risbot.bsub
+   ```
+   And paste the following contents:
+   ```bash
+   #!/bin/bash
+   #BSUB -q artsci-interactive
+   #BSUB -G compute-artsci
+   #BSUB -n 8
+   #BSUB -R 'select[port8003=1]'
+   #BSUB -R 'gpuhost rusage[mem=120GB]'
+   #BSUB -gpu 'num=1'
+   #BSUB -a "docker(fizban007/ris_chatbot)"
+   
+   # Option 1: cloning the repo yourself
+   # cd <YOUR_WORKING_DIR>
+   # git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
+   # cd RIS-Chatbot
+   # Option 2: for dt-summer-corp and admin users, a working copy exists on storage2
+   cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/ragbot-dev
+
+   # Create venv environment if it doesn't exist
+   if [ ! -d "venv" ]; then
+       echo "Creating virtual environment..."
+       python -m venv venv
+       source venv/bin/activate
+       pip install requirements.txt
+   # Otherwise, activate existing venv
+   else
+       echo "Virtual environment already exists"
+       source venv/bin/activate
+   fi
+   ```
+   Then, create a bash script for exporting environment variables and submitting the job.
    ```bash
    cd ~
    vim risbot.sh
    ```
+   and paste in the following contents.
    ``` bash
    # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
    # Replace `<YOUR STORAGE LOCATION>` with your storage location (e.g. `/storage2/fs1/dt-summer-corp/Active`).
@@ -85,7 +115,7 @@ cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructur
    # Replace `<PORT OF CHOICE>` with your desired port.
    export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
    # Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
-   bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+   bsub -Is < ~/risbot.bsub
    ```
 
 ## Setting up the RAG database
