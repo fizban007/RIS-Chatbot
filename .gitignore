@@ -1,3 +1,10 @@
+cache/*
+!cache/.gitkeep
+cache/torch_compile/*
+!cache/torch_compile/.gitkeep
+cache/torch/*
+!cache/torch/.gitkeep
+
 huggingface/
 .python-version
 llama.cpp
