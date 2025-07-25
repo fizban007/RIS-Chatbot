@@ -114,6 +114,8 @@ It is recommended to create a separate virtual environment using tools such as `
    export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
    # Replace `<PORT OF CHOICE>` with your desired port.
    export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
+   # Replace <PATH TO STORAGE> with a directory large enough to cache your embedding and LLM models
+   export HF_HOME="<PATH TO STORAGE>/huggingface"
    # Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
    bsub -Is < ~/risbot.bsub
    ```
