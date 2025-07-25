@@ -140,6 +140,8 @@ python manage_rag.py clear-collection
 ```
 
 ## Setting up the LLM server
+### vLLM
+### llama.cpp
 Clone the llama.cpp repository. We use it to run the LLM server that powers the chatbot:
 ```
 git clone https://github.com/ggml-org/llama.cpp.git
