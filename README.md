@@ -1,61 +1,92 @@
-# RIS-Bot
+## Overview
 
-RIS-Bot is a chatbot tool for answering questions about the Research Infrastructure Services (RIS) HPC platform at Washignton University in St. Louis. RIS-Bot performs Retrieval Augmented Generation (RAG) on the documentation sourced from [WashU RIS Documentation](https://docs.ris.wustl.edu), with a self-contained pipeline for data retrieval, vector embedding and RAG generation.
+RIS-Bot is a Retrieval-Augmented-Generation-based (RAG-based) pipeline for assisting researchers with WashU's High Performance Computing platform for research, Research Infrastructure Services (RIS). The pipeline consists of the following components:  
+1. **Data Collector:**  
+RIS-bot gains its knowledge from [WashU RIS Documentation](https://docs.ris.wustl.edu) hosted on Confluence. `confluence.py` can be used to scrape the entire documentation space at once or perform a partial scrape of documents updated within a given time frame. The time frame can be set within the program. One of the future goals of this project is to remove this parameter and automatically scrape any documents that have a later modification time on Confluence than locally.  
+3. **Vector Database:**  
+The scraped documentation is embedded by an embedding model of the user's choice (specified in .env) and stored in a vector database for efficient inference-time retrieval. The vector database can be deleted and re-embedded to update its contents. It is a future goal of this project to allow for re-embedding of only files that were recently updated by `confluence.py`. All functionality related to the vector database is run through `manage_rag.py`.  
+At inference-time, the query is matched against the vector database using a cosine similarity test to produce the most semantically similar documents. These documents are then provided to the chatbot to provide context for answering the user questions.
+4. **LLM Server:**  
+The inference LLM is hosted on one of the compute-node / server's ports. The user may select any open-source model through the `.env` file or provide an API key for paywalled models (not extensively tested).  
+5. **Web Server:**  
+On a separate port, the web server provides a Graphical Web UI that the user can connect to for querying the chatbot. The server instantiates an `EnhancedRAGChatbot()` object which queries the vector database, augments the user's questions with the system prompt and retrieved context, and contacts the LLM Server to generate answers.
 
-# Deployment
 
-## Mounting core libraries
-RIS-bot requires certain core libraries such as CUDA. This installation guide will cover how to run the program on RIS where the appropriate versions of these libraries have already been installed. The user should install these libraries themselves before following next steps if deploying to a different platform.
+## Prerequisites
 
-```
-export LSF_DOCKER_VOLUMES="/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs:/usr/local/modules /storage2/fs1/dt-summer-corp:/storage2/fs1/dt-summer-corp $HOME:$HOME"
-```
+### System Requirements:
 
-## Mapping Ports
-By default, the chat web interface will run on port `8501` `(0.0.0.0:8501)` on the Docker image, and we map this to port `8003` `(compute1-exec-xxx.ris.wustl.edu:8003)` for users to access.
- ```
- export LSF_DOCKER_PORTS='8003:8501'
- ```
+- **CUDA 12.4**
 
-## Job Submission
- Submit the job requesting 1 GPU. Use the ris_chatbot docker image.
- ```
- bsub -Is -G compute-artsci -q artsci-interactive -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
- ```
+- **Docker image**
 
-## Switch to working directory
-The development version exists in `storage2` and can be accessed via:
+If you have CUDA 12.4 installed on your system, you can run RIS-bot in the `fizban007/ris_chatbot` Docker image, or build your own compatible image from `Dockerfile.chatbot`. Otherwise, you will need to download CUDA 12.4 first. CUDA 12.4 is available to members of Digital Transformations Summer Corps at `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs`.
+
+### Program Requirements:
+
+- **LlamaIndex components** (indexing documentation to facilitate RAG)
+
+- **ChromaDB** (vector database for storing vectorized documentation)
+
+- **huggingface hub** (downloading models for embedding and inference)
+
+- **OpenAI and Gemini** (API support for validation Q&A generation and LLM-based judging)
+
+- **Llama.cpp / VLLM** (LLM server)
+
+- **PyTorch** (VLLM dependency)
+
+It is recommended to create a separate virtual environment using tools such as `uv` or `conda`. Follow along for more detailed steps using `venv`.
+
+## Environment Setup (with example for RIS)
+1.  Make sure the program has access to CUDA 12.4, your storage location, and your home directory
+   
+2. By default, the web UI will be hosted on port `8501` `(0.0.0.0:8501)` of the Docker container. You can map this to any available port of your choice. 
+   **This is the port users will connect to.**
+
+3. Connect to a compute node with 1 GPU and run your Docker container.
+
+4. Switch to your working directory and clone this repository
+   ```
+   cd YOUR_WORKING_DIR
+   git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
+   cd RIS-Chatbot
+   ```
+*(Example Using RIS)*
+For `dt-summer-corp` and admin
 ```
 cd /storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/ragbot-dev
 ```
 
-Otherwise, change to your working directory and clone the [RIS-Chatbot repository](https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot):
-```
-cd YOUR_WORKING_DIR
-git clone https://github.com/Digital-Transformation-Summer-Corps/RIS-Chatbot.git
-cd RIS-Chatbot
-```
+5. Set your own configurations as environment variables. A template is provided as `.env.example`. Note that you would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
+   ```
+   cp .env.example .env
+   ```
+   *cp does not cause any changes that Git tracks, so there will be no conflicts*
 
-## Environment Setup
-Change `.env.example` to `.env` and change the settings if necessary:
-```
-cp .env.example .env
-```
 
-*cp does not cause any changes that Git tracks, so there will be no conflicts*
+6. Create and activate a virtual environment in the chatbot directory. Then, install the requirements.
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-You would need to add your own Gemini API key for validation (QA generation & LLM-as-a-judge).
-
-Create and activate a virtual environment:
-```
-python3 -m venv venv
-source venv/bin/activate
-```
-
-Install the requirements:
-```
-pip install -r requirements.txt
-```
+   *(Example Using RIS)*
+   Create a bash script
+   ```bash
+   cd ~
+   vim risbot.sh
+   ```
+   ``` bash
+   # Replace `<PATH TO CUDA 12.4>` with your CUDA 12.4 folder (e.g., `/storage2/fs1/dt-summer-corp/Active/common/projects/ai-on-washu-infrastructure/chatbot/libs` for admin / dt-summer-corp members)
+   # Replace `<YOUR STORAGE LOCATION>` with your storage location (e.g. `/storage2/fs1/dt-summer-corp/Active`).
+   export LSF_DOCKER_VOLUMES="<PATH TO CUDA 12.4>:/usr/local/modules <YOUR STORAGE LOCATION>:<YOUR STORAGE LOCATION> $HOME:$HOME"
+   # Replace `<PORT OF CHOICE>` with your desired port.
+   export LSF_DOCKER_PORTS='<PORT OF CHOICE>:8501'
+   # Replace <COMPUTE GROUP> and <INTERACTIVE QUEUE> with your compute group and accessible interactive queue
+   bsub -Is -G <COMPUTE GROUP> -q <INTERACTIVE QUEUE> -n 8 -R 'select[port8003=1]' -R 'gpuhost rusage[mem=120GB]' -gpu 'num=1' -a 'docker(fizban007/ris_chatbot)'  /usr/bin/bash
+   ```
 
 ## Setting up the RAG database
 Export all pages from Confluence. The first time you run this, it may ask for some authentication details. Choose the first option and input the root URL of the RIS Confluence instance: `https://washu.atlassian.net/`. This will take a while to run (~5 minutes) and export all the pages to the `RIS User Documentation` directory:
