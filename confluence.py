@@ -118,9 +118,36 @@ def walk_and_export_hierarchy(pages, path_prefix=""):
         # indent = "  " * level
         # print(f"{indent}Exporting: {page['title']}")
         
-        # Export this page
-        export_page_with_metadata(page, path_prefix)
-        
+        if should_export:
+            # Export this page
+            markdown_path = export_page_with_metadata(page, path_prefix)
+            print(f"Markdown path: {markdown_path}")
+            if markdown_path:
+                # Ensure the directory exists before writing
+                updated_pages_file = os.path.join("RIS User Documentation", "updated_pages.txt")
+                os.makedirs(os.path.dirname(updated_pages_file), exist_ok=True)
+                print(f"Writing to: '{updated_pages_file}'!")
+                with open(updated_pages_file, 'a') as f:
+                    f.write(f"{markdown_path}\n")
+        else:
+            # The markdown file and metadata should already exist
+            markdown_path = path_prefix + page['title'] + '.md'
+            # Read the JSON metadata file to get the webpage URL
+            json_path = path_prefix + page['title'] + '.json'
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as json_file:
+                        metadata = json.load(json_file)
+                        webpage_url = metadata.get('webpage_url', '')
+                        markdown_path_url_dict[page['title'] + '.md'] = webpage_url
+                        print(f"Read webpage URL from {json_path}: {webpage_url}")
+                except (json.JSONDecodeError, IOError) as e:
+                    print(f"Error reading JSON metadata from {json_path}: {e}")
+                    webpage_url = ''
+            else:
+                print(f"JSON metadata file not found: {json_path}")
+                webpage_url = ''
+
         # Recursively export children
         if page['children']:
             print(f"Processing children of: {page['title']}")
