@@ -35,6 +35,8 @@ def load_config():
         system_prompt=os.getenv("SYSTEM_PROMPT", "You are a helpful AI assistant. Answer questions based on the provided context. Be concise and accurate."),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        deepinfra_api_key=os.getenv("DEEPINFRA_API_KEY"),
+        mistral_api_key=os.getenv("MISTRAL_API_KEY"),
         together_api_key=os.getenv("TOGETHER_API_KEY"),
         hf_api_key=os.getenv("HF_API_KEY"),
         collection_name=os.getenv("COLLECTION_NAME", "rag_collection"),
