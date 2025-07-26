@@ -41,6 +41,8 @@ if 'chatbot' not in st.session_state:
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         together_api_key=os.getenv("TOGETHER_API_KEY"),
+        deepinfra_api_key=os.getenv("DEEPINFRA_API_KEY"),
+        mistral_api_key=os.getenv("MISTRAL_API_KEY"),
         hf_api_key=os.getenv("HF_API_KEY"),
         collection_name=os.getenv("COLLECTION_NAME", "rag_collection"),
         persist_dir=os.getenv("PERSIST_DIR", "./chroma_db"),
@@ -99,8 +101,12 @@ else:
     
     # Chat input
     if prompt := st.chat_input("Ask a question..."):
+        processed_prompt = prompt
+        if not any(cluster in prompt.lower() for cluster in ['compute1', 'compute2', 'lsf', 'slurm']):
+            processed_prompt = f"{prompt} compute1 lsf scheduler"
+
         # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.messages.append({"role": "user", "content": processed_prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         

@@ -21,6 +21,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai_like import OpenAILikeEmbedding
 # from llama_index.embeddings.mistralai import MistralAIEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.deepinfra import DeepInfraEmbeddingModel
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
@@ -44,9 +45,11 @@ class RAGConfig:
     
     # API Keys for cloud providers
     openai_api_key: Optional[str] = None
+    mistral_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     together_api_key: Optional[str] = None
     hf_api_key: Optional[str] = None
+    deepinfra_api_key: Optional[str] = None
     
     # Chunking configuration
     chunk_size: int = 4096
@@ -194,13 +197,23 @@ class EnhancedRAGChatbot:
         llm_api_key = self._get_api_key(self.config.llm_base_url)
         
         # Configure embedding model
-        self.embed_model = HuggingFaceEmbedding(model_name="Qwen/Qwen3-Embedding-0.6B")
-        # self.embed_model = OpenAILikeEmbedding(
-        #     model_name=self.config.embed_model,
-        #     api_base=self.config.embed_base_url,
-        #     api_key=embed_api_key,
-        #     embed_batch_size=self.config.embed_batch_size
-        # )
+        # self.embed_model = HuggingFaceEmbedding(model_name="Qwen/Qwen3-Embedding-0.6B")
+        if "deepinfra.com" in self.config.embed_base_url:
+            self.embed_model = DeepInfraEmbeddingModel(
+                model_id=self.config.embed_model,
+                api_token=embed_api_key,
+                normalize=True,
+                # embed_batch_size=self.config.embed_batch_size,
+                # encoding_format="float"
+            )
+        else:
+            self.embed_model = OpenAILikeEmbedding(
+                model_name=self.config.embed_model,
+                api_base=self.config.embed_base_url,
+                api_key=embed_api_key,
+                embed_batch_size=self.config.embed_batch_size,
+                encoding_format="float"
+            )
         # self.embed_model = MistralAIEmbedding(
         #     model_name=self.config.embed_model,
         #     api_key=embed_api_key,
@@ -256,6 +269,10 @@ class EnhancedRAGChatbot:
             return self.config.together_api_key or "dummy"
         elif "huggingface.co" in base_url:
             return self.config.hf_api_key or "dummy"
+        elif "deepinfra.com" in base_url:
+            return self.config.deepinfra_api_key or "dummy"
+        elif "mistral.ai" in base_url:
+            return self.config.mistral_api_key or "dummy"
         else:
             return "dummy"  # For local servers
     
